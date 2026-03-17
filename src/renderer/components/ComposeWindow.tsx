@@ -411,7 +411,7 @@ export default function ComposeWindow() {
           const plainBody = (m.body || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
           return {
             from: `${m.from?.name || ''} <${m.from?.email || ''}>`,
-            date: m.date || '',
+            date: m.date instanceof Date ? m.date.toISOString() : String(m.date || ''),
             body: plainBody || m.snippet || m.subject || '',
           };
         });

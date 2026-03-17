@@ -148,12 +148,12 @@ app.whenReady().then(() => {
   // Load AI classification settings
   loadAISettings();
 
-  // Open CRM database
-  openCrmDb();
-
   // Try to open existing database
   const dbReady = openDatabase();
   log.info(`Database: ${dbReady ? 'opened' : 'not found (needs account setup)'}`);
+
+  // Initialize CRM tables (after DB is open)
+  if (dbReady) openCrmDb();
 
   // Start sync for all configured accounts
   if (dbReady) {

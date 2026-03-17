@@ -73,6 +73,9 @@ const api = {
   // Contact search (compose autocomplete)
   searchContacts: (query: string, accountId?: string, limit?: number) =>
     ipcRenderer.invoke('db:search-contacts', query, accountId, limit),
+  // Full-text search (threads + contacts)
+  searchAll: (query: string, limit?: number) =>
+    ipcRenderer.invoke('db:search-all', query, limit),
 
   // AI Compose
   draftWithAI: (req: { mode: 'reply' | 'new' | 'rewrite'; threadMessages?: { from: string; date: string; body: string }[]; subject?: string; to?: string[]; existingBody?: string; instruction?: string; tone?: string; senderName?: string }) =>

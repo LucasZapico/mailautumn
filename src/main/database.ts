@@ -14,6 +14,11 @@ const Database = require2('better-sqlite3') as typeof BetterSqlite3;
 
 let db: BetterSqlite3.Database | null = null;
 
+/** Get the raw database instance (for CRM and other internal modules) */
+export function getDb(): BetterSqlite3.Database | null {
+  return db;
+}
+
 export function getConfigDir(): string {
   return path.join(process.env.HOME || '/tmp', '.config', 'Mailspring');
 }
@@ -603,6 +608,82 @@ export function searchContacts(query: string, accountId?: string, limit = 10): {
     log.error('searchContacts error:', err);
     return [];
   }
+}
+
+// ── Full-text search (FTS5) ──
+
+export interface SearchResult {
+  type: 'thread' | 'contact';
+  id: string;
+  title: string;
+  subtitle: string;
+  snippet?: string;
+}
+
+/** Search threads via FTS5 — matches subject, body, from, to */
+export function searchThreads(query: string, limit = 15): SearchResult[] {
+  if (!db || !query.trim()) return [];
+  try {
+    // FTS5 query: quote the terms and add wildcard for prefix matching
+    const terms = query.trim().split(/\s+/).map(t => `"${t}"*`).join(' ');
+    const rows = db.prepare(`
+      SELECT ts.content_id as id, ts.subject, ts.from_, ts.body,
+             snippet(ThreadSearch, 5, '<b>', '</b>', '...', 40) as snip
+      FROM ThreadSearch ts
+      WHERE ThreadSearch MATCH ?
+      ORDER BY rank
+      LIMIT ?
+    `).all(terms, limit) as any[];
+
+    return rows.map(r => ({
+      type: 'thread' as const,
+      id: r.id,
+      title: r.subject || '(no subject)',
+      subtitle: (r.from_ || '').split(' ').slice(0, 3).join(' '),
+      snippet: r.snip?.replace(/<\/?b>/g, '') || '',
+    }));
+  } catch (err) {
+    log.error('searchThreads FTS error:', err);
+    return [];
+  }
+}
+
+/** Search contacts via FTS5 */
+export function searchContactsFTS(query: string, limit = 10): SearchResult[] {
+  if (!db || !query.trim()) return [];
+  try {
+    const terms = query.trim().split(/\s+/).map(t => `"${t}"*`).join(' ');
+    const rows = db.prepare(`
+      SELECT cs.content_id as id, cs.content
+      FROM ContactSearch cs
+      WHERE ContactSearch MATCH ?
+      ORDER BY rank
+      LIMIT ?
+    `).all(terms, limit) as any[];
+
+    return rows.map(r => {
+      const parts = (r.content || '').split(' ');
+      const email = r.id || parts[0] || '';
+      const name = parts.slice(1).join(' ').trim();
+      return {
+        type: 'contact' as const,
+        id: email,
+        title: name || email.split('@')[0],
+        subtitle: email,
+      };
+    });
+  } catch (err) {
+    log.error('searchContactsFTS error:', err);
+    return [];
+  }
+}
+
+/** Unified search — threads + contacts combined, ranked */
+export function searchAll(query: string, limit = 20): SearchResult[] {
+  const threads = searchThreads(query, Math.ceil(limit * 0.7));
+  const contacts = searchContactsFTS(query, Math.ceil(limit * 0.3));
+  // Contacts first (faster to scan), then threads
+  return [...contacts, ...threads].slice(0, limit);
 }
 
 // ── Account queries (from database, not config) ──

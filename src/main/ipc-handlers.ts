@@ -179,6 +179,10 @@ export function registerIpcHandlers(): void {
     return database.searchContacts(query, accountId, limit);
   });
 
+  ipcMain.handle('db:search-all', (_event, query: string, limit?: number) => {
+    return database.searchAll(query, limit);
+  });
+
   // ── AI Classification ──
 
   ipcMain.handle('ai:get-settings', () => {

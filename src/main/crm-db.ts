@@ -1,24 +1,20 @@
 /**
  * CRM database — lightweight contact metadata store.
- * Separate from mailsync's edgehill.db (which is read-only from Electron).
+ * Uses the shared edgehill.db instance (mailsync ignores unknown tables).
  */
 
-import Database from 'better-sqlite3';
-import path from 'path';
 import log from 'electron-log/main';
-import { getConfigDir } from './database';
-
-let db: Database.Database | null = null;
+import { getDb } from './database';
 
 export function openCrmDb(): void {
-  if (db) return;
-  const dbPath = path.join(getConfigDir(), 'crm.db');
-  db = new Database(dbPath);
-  db.pragma('journal_mode = WAL');
-  db.pragma('foreign_keys = ON');
+  const db = getDb();
+  if (!db) {
+    log.warn('[crm] database not open yet, skipping CRM init');
+    return;
+  }
 
   db.exec(`
-    CREATE TABLE IF NOT EXISTS Contact (
+    CREATE TABLE IF NOT EXISTS CrmContact (
       email TEXT PRIMARY KEY,
       name TEXT NOT NULL DEFAULT '',
       company TEXT NOT NULL DEFAULT '',
@@ -31,37 +27,26 @@ export function openCrmDb(): void {
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
-    CREATE TABLE IF NOT EXISTS Interaction (
+    CREATE TABLE IF NOT EXISTS CrmInteraction (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       contact_email TEXT NOT NULL,
       thread_id TEXT NOT NULL,
       subject TEXT NOT NULL DEFAULT '',
       direction TEXT NOT NULL DEFAULT 'received',
       date TEXT NOT NULL,
-      FOREIGN KEY (contact_email) REFERENCES Contact(email) ON DELETE CASCADE
+      FOREIGN KEY (contact_email) REFERENCES CrmContact(email) ON DELETE CASCADE
     );
 
-    CREATE INDEX IF NOT EXISTS idx_interaction_contact ON Interaction(contact_email);
-    CREATE INDEX IF NOT EXISTS idx_interaction_thread ON Interaction(thread_id);
-    CREATE INDEX IF NOT EXISTS idx_contact_bucket ON Contact(bucket);
+    CREATE INDEX IF NOT EXISTS idx_crm_interaction_contact ON CrmInteraction(contact_email);
+    CREATE INDEX IF NOT EXISTS idx_crm_interaction_thread ON CrmInteraction(thread_id);
+    CREATE INDEX IF NOT EXISTS idx_crm_contact_bucket ON CrmContact(bucket);
   `);
 
-  // Migration: add bucket column if missing (existing DBs)
-  try {
-    db.prepare("SELECT bucket FROM Contact LIMIT 1").get();
-  } catch {
-    db.exec("ALTER TABLE Contact ADD COLUMN bucket TEXT NOT NULL DEFAULT ''");
-    log.info('[crm] migrated: added bucket column');
-  }
-
-  log.info(`[crm] database opened: ${dbPath}`);
+  log.info('[crm] tables initialized');
 }
 
 export function closeCrmDb(): void {
-  if (db) {
-    db.close();
-    db = null;
-  }
+  // No-op — shared DB closed by database.ts
 }
 
 // ── Contact CRUD ──
@@ -99,18 +84,20 @@ function rowToContact(row: any): CrmContact {
 }
 
 export function getContact(email: string): CrmContact | null {
+  const db = getDb();
   if (!db) return null;
   const row = db.prepare(`
     SELECT c.*,
-      (SELECT COUNT(*) FROM Interaction i WHERE i.contact_email = c.email) as interaction_count,
-      (SELECT MAX(i.date) FROM Interaction i WHERE i.contact_email = c.email) as last_interaction
-    FROM Contact c WHERE c.email = ?
+      (SELECT COUNT(*) FROM CrmInteraction i WHERE i.contact_email = c.email) as interaction_count,
+      (SELECT MAX(i.date) FROM CrmInteraction i WHERE i.contact_email = c.email) as last_interaction
+    FROM CrmContact c WHERE c.email = ?
   `).get(email.toLowerCase()) as any;
   return row ? rowToContact(row) : null;
 }
 
 export function upsertContact(contact: Partial<CrmContact> & { email: string }): CrmContact {
-  if (!db) throw new Error('CRM database not open');
+  const db = getDb();
+  if (!db) throw new Error('Database not open');
   const email = contact.email.toLowerCase();
   const existing = getContact(email);
 
@@ -127,11 +114,11 @@ export function upsertContact(contact: Partial<CrmContact> & { email: string }):
     if (updates.length > 0) {
       updates.push("updated_at = datetime('now')");
       params.push(email);
-      db.prepare(`UPDATE Contact SET ${updates.join(', ')} WHERE email = ?`).run(...params);
+      db.prepare(`UPDATE CrmContact SET ${updates.join(', ')} WHERE email = ?`).run(...params);
     }
   } else {
     db.prepare(`
-      INSERT INTO Contact (email, name, company, phone, notes, tags, bucket, starred)
+      INSERT INTO CrmContact (email, name, company, phone, notes, tags, bucket, starred)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       email,
@@ -148,18 +135,20 @@ export function upsertContact(contact: Partial<CrmContact> & { email: string }):
 }
 
 export function deleteContact(email: string): void {
+  const db = getDb();
   if (!db) return;
-  db.prepare('DELETE FROM Contact WHERE email = ?').run(email.toLowerCase());
+  db.prepare('DELETE FROM CrmContact WHERE email = ?').run(email.toLowerCase());
 }
 
 export function searchContacts(query: string, limit = 20): CrmContact[] {
+  const db = getDb();
   if (!db) return [];
   const q = `%${query.toLowerCase()}%`;
   const rows = db.prepare(`
     SELECT c.*,
-      (SELECT COUNT(*) FROM Interaction i WHERE i.contact_email = c.email) as interaction_count,
-      (SELECT MAX(i.date) FROM Interaction i WHERE i.contact_email = c.email) as last_interaction
-    FROM Contact c
+      (SELECT COUNT(*) FROM CrmInteraction i WHERE i.contact_email = c.email) as interaction_count,
+      (SELECT MAX(i.date) FROM CrmInteraction i WHERE i.contact_email = c.email) as last_interaction
+    FROM CrmContact c
     WHERE c.email LIKE ? OR LOWER(c.name) LIKE ? OR LOWER(c.company) LIKE ? OR c.tags LIKE ?
     ORDER BY c.starred DESC, c.updated_at DESC
     LIMIT ?
@@ -168,12 +157,13 @@ export function searchContacts(query: string, limit = 20): CrmContact[] {
 }
 
 export function getAllContacts(limit = 100): CrmContact[] {
+  const db = getDb();
   if (!db) return [];
   const rows = db.prepare(`
     SELECT c.*,
-      (SELECT COUNT(*) FROM Interaction i WHERE i.contact_email = c.email) as interaction_count,
-      (SELECT MAX(i.date) FROM Interaction i WHERE i.contact_email = c.email) as last_interaction
-    FROM Contact c
+      (SELECT COUNT(*) FROM CrmInteraction i WHERE i.contact_email = c.email) as interaction_count,
+      (SELECT MAX(i.date) FROM CrmInteraction i WHERE i.contact_email = c.email) as last_interaction
+    FROM CrmContact c
     ORDER BY c.starred DESC, c.updated_at DESC
     LIMIT ?
   `).all(limit) as any[];
@@ -181,12 +171,13 @@ export function getAllContacts(limit = 100): CrmContact[] {
 }
 
 export function getContactsByBucket(bucket: string, limit = 100): CrmContact[] {
+  const db = getDb();
   if (!db) return [];
   const rows = db.prepare(`
     SELECT c.*,
-      (SELECT COUNT(*) FROM Interaction i WHERE i.contact_email = c.email) as interaction_count,
-      (SELECT MAX(i.date) FROM Interaction i WHERE i.contact_email = c.email) as last_interaction
-    FROM Contact c
+      (SELECT COUNT(*) FROM CrmInteraction i WHERE i.contact_email = c.email) as interaction_count,
+      (SELECT MAX(i.date) FROM CrmInteraction i WHERE i.contact_email = c.email) as last_interaction
+    FROM CrmContact c
     WHERE c.bucket = ?
     ORDER BY c.starred DESC, c.name ASC
     LIMIT ?
@@ -195,10 +186,11 @@ export function getContactsByBucket(bucket: string, limit = 100): CrmContact[] {
 }
 
 export function getBuckets(): { bucket: string; count: number }[] {
+  const db = getDb();
   if (!db) return [];
   return db.prepare(`
     SELECT bucket, COUNT(*) as count
-    FROM Contact
+    FROM CrmContact
     WHERE bucket != ''
     GROUP BY bucket
     ORDER BY bucket ASC
@@ -208,35 +200,37 @@ export function getBuckets(): { bucket: string; count: number }[] {
 // ── Interactions ──
 
 export function addInteraction(contactEmail: string, threadId: string, subject: string, direction: 'sent' | 'received', date: string): void {
+  const db = getDb();
   if (!db) return;
   const email = contactEmail.toLowerCase();
   // Only track interactions for contacts already in the CRM
-  const exists = db.prepare('SELECT 1 FROM Contact WHERE email = ?').get(email);
+  const exists = db.prepare('SELECT 1 FROM CrmContact WHERE email = ?').get(email);
   if (!exists) return;
-  // Avoid duplicate interactions for the same thread
-  const dup = db.prepare('SELECT 1 FROM Interaction WHERE contact_email = ? AND thread_id = ? AND direction = ?').get(email, threadId, direction);
+  const dup = db.prepare('SELECT 1 FROM CrmInteraction WHERE contact_email = ? AND thread_id = ? AND direction = ?').get(email, threadId, direction);
   if (!dup) {
-    db.prepare('INSERT INTO Interaction (contact_email, thread_id, subject, direction, date) VALUES (?, ?, ?, ?, ?)').run(email, threadId, subject, direction, date);
+    db.prepare('INSERT INTO CrmInteraction (contact_email, thread_id, subject, direction, date) VALUES (?, ?, ?, ?, ?)').run(email, threadId, subject, direction, date);
   }
 }
 
 export function getInteractions(contactEmail: string, limit = 50): { threadId: string; subject: string; direction: string; date: string }[] {
+  const db = getDb();
   if (!db) return [];
   return db.prepare(`
     SELECT thread_id as threadId, subject, direction, date
-    FROM Interaction WHERE contact_email = ?
+    FROM CrmInteraction WHERE contact_email = ?
     ORDER BY date DESC LIMIT ?
   `).all(contactEmail.toLowerCase(), limit) as any[];
 }
 
 export function getContactsForThread(threadId: string): CrmContact[] {
+  const db = getDb();
   if (!db) return [];
   const rows = db.prepare(`
     SELECT DISTINCT c.*,
-      (SELECT COUNT(*) FROM Interaction i WHERE i.contact_email = c.email) as interaction_count,
-      (SELECT MAX(i.date) FROM Interaction i WHERE i.contact_email = c.email) as last_interaction
-    FROM Contact c
-    JOIN Interaction i ON i.contact_email = c.email
+      (SELECT COUNT(*) FROM CrmInteraction i WHERE i.contact_email = c.email) as interaction_count,
+      (SELECT MAX(i.date) FROM CrmInteraction i WHERE i.contact_email = c.email) as last_interaction
+    FROM CrmContact c
+    JOIN CrmInteraction i ON i.contact_email = c.email
     WHERE i.thread_id = ?
     ORDER BY c.starred DESC
   `).all(threadId) as any[];

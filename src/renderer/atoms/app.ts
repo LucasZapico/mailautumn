@@ -280,7 +280,7 @@ export const toggleStarAtom = atom(null, (get, set, threadId: string) => {
       type: 'ChangeStarredTask',
       starred: !thread.starred,
       threadIds: [threadId],
-    }).catch(() => {});
+    }).catch(err => console.error('[task] fire-and-forget failed:', err));
   }
 });
 
@@ -303,7 +303,7 @@ export const markReadAtom = atom(null, (get, set, threadId: string) => {
       type: 'ChangeUnreadTask',
       unread: false,
       threadIds: [threadId],
-    }).catch(() => {});
+    }).catch(err => console.error('[task] fire-and-forget failed:', err));
   }
 });
 
@@ -595,7 +595,7 @@ export const checkAccountsAtom = atom(null, async (_get, set) => {
               prev.map(a => a.id === acct.id ? { ...a, aliases } : a)
             );
           }
-        }).catch(() => {});
+        }).catch(err => console.error('[task] fire-and-forget failed:', err));
       }
     }
 
