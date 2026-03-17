@@ -1,0 +1,98 @@
+{
+  "name": "mailspring-next",
+  "version": "0.1.0",
+  "description": "Mailautumn — modern email client",
+  "type": "module",
+  "main": "./out/main/index.js",
+  "author": {
+    "name": "Mailspring Next Contributors",
+    "email": "mailspring-next@users.noreply.github.com"
+  },
+  "homepage": "https://github.com/nickthecook/mailspring-next",
+  "license": "GPL-3.0",
+  "scripts": {
+    "dev": "ELECTRON_DISABLE_SANDBOX=1 electron-vite dev",
+    "build": "electron-vite build",
+    "preview": "electron-vite preview",
+    "typecheck:main": "tsc --noEmit -p tsconfig.node.json",
+    "typecheck:renderer": "tsc --noEmit -p tsconfig.web.json",
+    "typecheck": "npm run typecheck:main && npm run typecheck:renderer",
+    "pack": "npm run build && electron-builder --dir",
+    "dist": "npm run build && electron-builder",
+    "dist:linux": "npm run build && electron-builder --linux"
+  },
+  "dependencies": {
+    "@electron-toolkit/utils": "^4.0.0",
+    "@tiptap/extension-link": "^2.27.2",
+    "@tiptap/extension-placeholder": "^2.27.2",
+    "@tiptap/pm": "^2.27.2",
+    "@tiptap/react": "^2.27.2",
+    "@tiptap/starter-kit": "^2.27.2",
+    "better-sqlite3": "^11.7.0",
+    "boring-avatars": "^2.0.4",
+    "electron-log": "^5.3.0",
+    "jotai": "^2.12.0",
+    "marked": "^17.0.4",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-icons": "^5.4.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.2.1",
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "@vitejs/plugin-react": "^4.3.4",
+    "electron": "^35.0.0",
+    "electron-builder": "^26.8.1",
+    "electron-vite": "^3.0.0",
+    "tailwindcss": "^4.1.0",
+    "typescript": "^5.7.3",
+    "vite": "^6.2.0"
+  },
+  "build": {
+    "appId": "com.mailautumn.app",
+    "productName": "Mailautumn",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "out/**/*",
+      "node_modules/**/*",
+      "!node_modules/**/{test,tests,__tests__}/**",
+      "!node_modules/**/*.{md,ts,map}"
+    ],
+    "extraResources": [
+      {
+        "from": "resources/mailsync",
+        "to": "mailsync",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Network;Email",
+      "icon": "resources/icon.png",
+      "synopsis": "Modern email client powered by Mailspring sync",
+      "mimeTypes": [
+        "x-scheme-handler/mailto"
+      ]
+    },
+    "deb": {
+      "depends": [
+        "libsecret-1-0",
+        "libsasl2-2"
+      ]
+    },
+    "appImage": {
+      "artifactName": "${name}-${version}-${arch}.AppImage"
+    },
+    "npmRebuild": true,
+    "nodeGypRebuild": false
+  }
+}

@@ -1,0 +1,30 @@
+# Dependencies
+node_modules/
+
+# Build output
+out/
+dist/
+
+# Environment & secrets
+.env
+.env.*
+*.pem
+
+# Editor & OS
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# TypeScript incremental
+*.tsbuildinfo
+
+# Native binaries (downloaded separately, not committed)
+resources/mailsync/
