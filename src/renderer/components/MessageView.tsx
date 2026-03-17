@@ -13,7 +13,7 @@ import {
   selectedThreadIdAtom, selectedThreadAtom, selectThreadAtom,
   filteredThreadsAtom, viewModeAtom, goBackToListAtom, densityConfigAtom,
   toggleStarAtom, archiveThreadAtom, trashThreadAtom, markUnreadAtom, togglePinAtom,
-  setThreadTypeAtom,
+  setThreadTypeAtom, showCrmPanelAtom,
 } from '../atoms/app';
 import type { Message, Thread } from '../data/types';
 import { themeModeAtom } from '../atoms/theme';
@@ -22,7 +22,8 @@ import { useContextMenu } from './ContextMenu';
 import Avatar from './Avatar';
 import TypeChip from './TypeChip';
 import ComposeBar from './ComposeBar';
-import EmailFrame from './EmailFrame';
+import EmailBody from './EmailBody';
+import PluginSlot from '../plugins/PluginSlot';
 
 const bodyStyles = '[&_a]:text-blue [&_a]:underline [&_h2]:text-base [&_h2]:font-semibold [&_h2]:mt-3 [&_h2]:mb-1 [&_h3]:text-sm [&_h3]:font-semibold [&_h3]:mt-2 [&_h3]:mb-1 [&_blockquote]:border-l-2 [&_blockquote]:border-border-primary [&_blockquote]:pl-3 [&_blockquote]:text-text-secondary [&_blockquote]:italic [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_li]:my-0.5 [&_pre]:bg-bg-tertiary [&_pre]:rounded-md [&_pre]:p-3 [&_pre]:my-2 [&_pre]:text-xs [&_pre]:overflow-x-auto [&_code]:text-xs [&_code]:font-mono [&_table]:my-2 [&_td]:py-1 [&_td]:pr-4';
 
@@ -224,7 +225,7 @@ const MessageItem = memo(function MessageItem({ message, grouped, extraction, us
 
   const bodyEl = useIframe ? (
     <>
-      <EmailFrame html={message.body} dark={themeMode !== 'light'} />
+      <EmailBody html={message.body} dark={themeMode !== 'light'} />
       {attachments && attachments.length > 0 && <AttachmentList attachments={attachments} />}
     </>
   ) : (
@@ -622,6 +623,7 @@ export default function MessageView() {
   const thread = useAtomValue(selectedThreadAtom);
   const selectThread = useSetAtom(selectThreadAtom);
   const threadList = useAtomValue(filteredThreadsAtom);
+  const showCrmPanel = useAtomValue(showCrmPanelAtom);
 
   const currentIndex = thread ? threadList.findIndex(t => t.id === thread.id) : -1;
   const total = threadList.length;
@@ -669,24 +671,27 @@ export default function MessageView() {
   }
 
   return (
-    <div className="flex-1 flex flex-col bg-bg-primary min-w-0">
-      <ThreadHeader thread={thread} position={position} total={total} onPrev={onPrev} onNext={onNext} />
-      {isConversation && thread.messages.length >= 2 && <ThreadInsights thread={thread} />}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto">
-        {thread.messages.map((message, i) => (
-          <MessageItem
-            key={message.id}
-            message={message}
-            grouped={shouldGroupWithPrevious(thread.messages, i)}
-            extraction={extractions.get(message.id)}
-            useIframe={!isConversation}
-          />
-        ))}
-        <div className="h-4" />
+    <div className="flex-1 flex min-w-0">
+      <div className="flex-1 flex flex-col bg-bg-primary min-w-0">
+        <ThreadHeader thread={thread} position={position} total={total} onPrev={onPrev} onNext={onNext} />
+        {isConversation && thread.messages.length >= 2 && <ThreadInsights thread={thread} />}
+        <div ref={scrollRef} className="flex-1 overflow-y-auto">
+          {thread.messages.map((message, i) => (
+            <MessageItem
+              key={message.id}
+              message={message}
+              grouped={shouldGroupWithPrevious(thread.messages, i)}
+              extraction={extractions.get(message.id)}
+              useIframe={!isConversation}
+            />
+          ))}
+          <div className="h-4" />
+        </div>
+        <ComposeBar thread={thread} onGrow={() => {
+          if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+        }} />
       </div>
-      <ComposeBar thread={thread} onGrow={() => {
-        if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-      }} />
+      {showCrmPanel && <PluginSlot name="message-sidebar" />}
     </div>
   );
 }

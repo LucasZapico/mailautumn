@@ -107,6 +107,28 @@ const api = {
     return () => ipcRenderer.removeListener('accounts-updated', handler);
   },
 
+  // CRM
+  crmGetContact: (email: string) =>
+    ipcRenderer.invoke('crm:get-contact', email),
+  crmUpsertContact: (contact: any) =>
+    ipcRenderer.invoke('crm:upsert-contact', contact),
+  crmDeleteContact: (email: string) =>
+    ipcRenderer.invoke('crm:delete-contact', email),
+  crmSearchContacts: (query: string, limit?: number) =>
+    ipcRenderer.invoke('crm:search-contacts', query, limit),
+  crmAllContacts: (limit?: number) =>
+    ipcRenderer.invoke('crm:all-contacts', limit),
+  crmContactsByBucket: (bucket: string, limit?: number) =>
+    ipcRenderer.invoke('crm:contacts-by-bucket', bucket, limit),
+  crmBuckets: () =>
+    ipcRenderer.invoke('crm:buckets'),
+  crmAddInteraction: (contactEmail: string, threadId: string, subject: string, direction: 'sent' | 'received', date: string) =>
+    ipcRenderer.invoke('crm:add-interaction', contactEmail, threadId, subject, direction, date),
+  crmGetInteractions: (contactEmail: string, limit?: number) =>
+    ipcRenderer.invoke('crm:get-interactions', contactEmail, limit),
+  crmContactsForThread: (threadId: string) =>
+    ipcRenderer.invoke('crm:contacts-for-thread', threadId),
+
   // Logs
   openLogFolder: () =>
     ipcRenderer.invoke('logs:open-folder'),

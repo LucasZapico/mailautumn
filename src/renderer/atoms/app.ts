@@ -111,6 +111,7 @@ export const showViewsAtom = persistedAtom<boolean>('pref:showViews', true);
 export const showAvatarsAtom = persistedAtom<boolean>('pref:showAvatars', true);
 export const avatarStyleAtom = persistedAtom<AvatarStyle>('pref:avatarStyle', 'mono');
 export const showFormattingToolbarAtom = persistedAtom<boolean>('pref:showFormattingToolbar', true);
+export const showCrmPanelAtom = persistedAtom<boolean>('pref:showCrmPanel', true);
 
 // ── Compose ──
 

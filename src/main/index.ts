@@ -8,6 +8,8 @@ import { registerIpcHandlers } from './ipc-handlers';
 import { startSyncForAccount, stopAllSync } from './mailsync';
 import { stopIdentityServer } from './identity-server';
 import { loadAISettings } from './ai-classify';
+import { openCrmDb, closeCrmDb } from './crm-db';
+import { registerCrmHandlers } from './crm-handlers';
 
 // Register custom protocol for serving local email attachment files.
 // Must be called before app.whenReady().
@@ -141,9 +143,13 @@ app.whenReady().then(() => {
 
   // Register IPC handlers before window creation
   registerIpcHandlers();
+  registerCrmHandlers();
 
   // Load AI classification settings
   loadAISettings();
+
+  // Open CRM database
+  openCrmDb();
 
   // Try to open existing database
   const dbReady = openDatabase();
@@ -182,6 +188,7 @@ app.on('window-all-closed', () => {
 app.on('before-quit', () => {
   stopAllSync();
   stopIdentityServer();
+  closeCrmDb();
   closeDatabase();
 });
 

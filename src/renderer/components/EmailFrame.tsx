@@ -34,60 +34,58 @@ const lightCSS = `
 const darkCSS = `
   ${baseCSS}
   html, body {
-    background: #1e1e1e; color: #e0e0e0;
+    background: #1e1e1e !important; color: #e0e0e0 !important;
     color-scheme: dark;
   }
   a { color: #6ab0ff !important; }
-  pre { background: #2a2a2a !important; color: #d4d4d4 !important; }
+  pre, code { background: #2a2a2a !important; color: #d4d4d4 !important; }
   img { filter: brightness(0.9); }
 
   /*
-   * Dark Reader-style: override ALL elements with inline style attributes
-   * containing color/background keywords. This is far more robust than
-   * trying to match specific hex values.
+   * Nuclear dark mode: override ALL elements, not just those with inline styles.
+   * Newsletter HTML uses <style> blocks and classes — attribute selectors miss those.
    */
 
-  /* Background overrides — any element with an inline background */
-  [style*="background-color"], [style*="background:"],
-  [bgcolor] {
+  /* Force dark backgrounds on everything */
+  * {
+    background-color: transparent !important;
+    border-color: #3a3a3a !important;
+  }
+  html, body {
     background-color: #1e1e1e !important;
   }
-  /* Slightly lighter for nested containers (cards, panels) */
-  [style*="background-color"] [style*="background-color"],
-  [style*="background:"] [style*="background:"],
-  table[style*="background"] td[style*="background"],
-  [bgcolor] [bgcolor] {
-    background-color: #252525 !important;
+  /* Tables are the backbone of newsletter layouts — they need explicit bg */
+  table, tr, td, th, div, section, article, header, footer, main, aside, nav {
+    background-color: transparent !important;
   }
-  /* Third level — subtle differentiation */
-  [style*="background-color"] [style*="background-color"] [style*="background-color"],
-  td[style*="background"] td[style*="background"] {
-    background-color: #2a2a2a !important;
+  /* Give depth to layout containers that had backgrounds */
+  table[style*="background"], td[style*="background"],
+  div[style*="background"], [bgcolor],
+  table[class], td[class], div[class] {
+    background-color: #1e1e1e !important;
   }
 
-  /* Text color overrides — any element with an inline color */
-  [style*="color:"], [style*="color :"] {
-    color: #e0e0e0 !important;
+  /* Force all text to light colors */
+  * {
+    color: #d8d8d8 !important;
   }
-  /* Preserve intentionally muted/secondary text by keeping it slightly dimmer */
   h1, h2, h3, h4, h5, h6, strong, b {
     color: #f0f0f0 !important;
   }
-
-  /* Border overrides */
-  [style*="border"], hr {
-    border-color: #3a3a3a !important;
+  /* Muted text */
+  small, .footer, [style*="font-size: 1"], [style*="font-size:1"] {
+    color: #999 !important;
   }
 
-  /* Common email bgcolor attributes */
-  body[bgcolor], table[bgcolor], td[bgcolor], tr[bgcolor], th[bgcolor] {
-    background-color: #1e1e1e !important;
-  }
-
-  /* Gradient overlays — strip them */
+  /* Strip gradients */
   [style*="linear-gradient"], [style*="radial-gradient"] {
     background-image: none !important;
-    background-color: #252525 !important;
+  }
+
+  /* Buttons — keep them visible */
+  a[style*="background"], a[class] {
+    background-color: #333 !important;
+    color: #6ab0ff !important;
   }
 
   /* Box shadows — tone down */
@@ -95,7 +93,7 @@ const darkCSS = `
     box-shadow: 0 1px 3px rgba(0,0,0,0.4) !important;
   }
 
-  /* Outlook-style MSO conditional blocks */
+  /* Outlook conditional blocks */
   .ExternalClass, .ReadMsgBody {
     background-color: #1e1e1e !important;
     color: #e0e0e0 !important;
@@ -108,28 +106,36 @@ const darkCSS = `
  * set styles via both `style=""` attribute AND CSS classes; this ensures
  * inline wins don't fight our overrides.
  */
+/** Check if a color string is "light" (would be invisible on dark bg) */
+function isLightColor(color: string): boolean {
+  if (!color || color === 'transparent' || color === 'inherit' || color === 'initial') return false;
+  // Parse rgb/rgba
+  const m = color.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/);
+  if (m) {
+    const [, r, g, b] = m.map(Number);
+    // Luminance threshold — anything above ~180 is "light"
+    return (r * 0.299 + g * 0.587 + b * 0.114) > 160;
+  }
+  return false;
+}
+
 function stripInlineColors(doc: Document) {
   const elements = doc.body.querySelectorAll('*');
+
   for (const el of elements) {
-    const s = (el as HTMLElement).style;
+    const htmlEl = el as HTMLElement;
+    const s = htmlEl.style;
     if (!s) continue;
 
-    // Strip inline colors — let our stylesheet handle it
+    // Strip ALL inline color properties — our CSS !important rules take over
     if (s.color) s.color = '';
     if (s.backgroundColor) s.backgroundColor = '';
     if (s.background) {
-      // Preserve background-image (for layouts) but strip color component
-      const bg = s.background;
-      if (!bg.includes('url(')) {
-        s.background = '';
-      }
+      if (!s.background.includes('url(')) s.background = '';
     }
-    // Preserve background-image separately (set via longhand, not shorthand)
     if (s.backgroundImage && !s.backgroundImage.includes('url(')) {
       s.backgroundImage = '';
     }
-
-    // Strip inline border colors
     if (s.borderColor) s.borderColor = '';
     if (s.borderTopColor) s.borderTopColor = '';
     if (s.borderBottomColor) s.borderBottomColor = '';
@@ -137,10 +143,21 @@ function stripInlineColors(doc: Document) {
     if (s.borderRightColor) s.borderRightColor = '';
   }
 
-  // Also strip bgcolor attributes
-  const bgElements = doc.body.querySelectorAll('[bgcolor]');
-  for (const el of bgElements) {
+  // Strip bgcolor HTML attributes
+  for (const el of doc.body.querySelectorAll('[bgcolor]')) {
     el.removeAttribute('bgcolor');
+  }
+
+  // Strip color HTML attributes
+  for (const el of doc.body.querySelectorAll('[color]')) {
+    el.removeAttribute('color');
+  }
+
+  // Remove all embedded <style> blocks — their class-based color/background
+  // declarations fight our !important dark overrides. Layout (widths, padding,
+  // fonts) may shift slightly, but dark mode readability wins.
+  for (const style of doc.querySelectorAll('style')) {
+    style.remove();
   }
 }
 

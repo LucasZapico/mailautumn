@@ -5,9 +5,13 @@ import { ContextMenuProvider } from './components/ContextMenu';
 import './index.css';
 import { initTheme } from './lib/theme';
 import { log } from './lib/logger';
+import { initializePlugins } from './plugins/init';
 
 // Apply default theme before first paint
 initTheme();
+
+// Register plugins
+initializePlugins();
 
 log.info('Renderer starting');
 

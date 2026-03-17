@@ -25,7 +25,7 @@ import {
 import type { Thread } from '../data/types';
 import { themeModeAtom } from '../atoms/theme';
 import Avatar from './Avatar';
-import EmailFrame from './EmailFrame';
+import EmailBody from './EmailBody';
 
 function formatTime(date: Date): string {
   const now = new Date();
@@ -211,7 +211,7 @@ const NewsletterCard = memo(function NewsletterCard({
       ) : (
         <div className={`rounded-lg border border-border-secondary overflow-hidden
             ${focused ? 'border-border-secondary/50' : ''}`}>
-          <EmailFrame html={bodyHTML} dark={dark} />
+          <EmailBody html={bodyHTML} dark={dark} />
         </div>
       )}
     </article>

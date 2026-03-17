@@ -7,8 +7,14 @@ import {
 } from 'react-icons/io5';
 import { useAtomValue, useSetAtom } from 'jotai';
 import { filteredThreadsAtom, toggleStarAtom, markReadAtom, archiveThreadAtom, trashThreadAtom, selectThreadAtom, loadMessagesAtom } from '../atoms/app';
+import { themeModeAtom } from '../atoms/theme';
 import type { Thread, ThreadMeta } from '../data/types';
 import Avatar from './Avatar';
+
+/** Adapt a hex color's background opacity for dark vs light mode */
+function colorBg(hex: string, isDark: boolean): string {
+  return hex + (isDark ? '30' : '1a');
+}
 
 function formatTime(date: Date): string {
   const now = new Date();
@@ -42,7 +48,7 @@ function actionIcon(action: string) {
 
 // ── Update Card ──
 
-const UpdateCard = memo(function UpdateCard({ thread }: { thread: Thread }) {
+const UpdateCard = memo(function UpdateCard({ thread, isDark }: { thread: Thread; isDark: boolean }) {
   const selectThread = useSetAtom(selectThreadAtom);
   const loadMessages = useSetAtom(loadMessagesAtom);
   const toggleStar = useSetAtom(toggleStarAtom);
@@ -88,7 +94,7 @@ const UpdateCard = memo(function UpdateCard({ thread }: { thread: Thread }) {
         <div className="flex items-center gap-2 mb-1.5">
           <span
             className="text-xxs font-semibold px-1.5 py-0.5 rounded"
-            style={{ color: meta.serviceColor, backgroundColor: meta.serviceColor + '1a' }}
+            style={{ color: meta.serviceColor, backgroundColor: colorBg(meta.serviceColor, isDark) }}
           >
             {meta.service}
           </span>
@@ -160,6 +166,8 @@ const UpdateCard = memo(function UpdateCard({ thread }: { thread: Thread }) {
 
 export default function UpdatesFeed() {
   const threadList = useAtomValue(filteredThreadsAtom);
+  const themeMode = useAtomValue(themeModeAtom);
+  const isDark = themeMode !== 'light';
   const [serviceFilter, setServiceFilter] = useState<string | null>(null);
 
   // Build service filter chips
@@ -221,7 +229,7 @@ export default function UpdatesFeed() {
       <div className="flex-1 overflow-y-auto">
         <div className="mx-auto max-w-2xl px-4 py-3 space-y-2">
           {filtered.map(thread => (
-            <UpdateCard key={thread.id} thread={thread} />
+            <UpdateCard key={thread.id} thread={thread} isDark={isDark} />
           ))}
         </div>
       </div>

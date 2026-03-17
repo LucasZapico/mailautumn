@@ -6,8 +6,13 @@ import {
 } from 'react-icons/io5';
 import { useAtomValue, useSetAtom } from 'jotai';
 import { filteredThreadsAtom, toggleStarAtom, markReadAtom, archiveThreadAtom, trashThreadAtom, selectThreadAtom, loadMessagesAtom } from '../atoms/app';
+import { themeModeAtom } from '../atoms/theme';
 import type { Thread, ThreadMeta } from '../data/types';
 import Avatar from './Avatar';
+
+function colorBg(hex: string, isDark: boolean): string {
+  return hex + (isDark ? '30' : '1a');
+}
 
 function formatTime(date: Date): string {
   const now = new Date();
@@ -44,7 +49,7 @@ type TransactionMeta = Extract<ThreadMeta, { kind: 'transaction' }>;
 
 // ── Receipt Card ──
 
-const ReceiptCard = memo(function ReceiptCard({ thread }: { thread: Thread }) {
+const ReceiptCard = memo(function ReceiptCard({ thread, isDark }: { thread: Thread; isDark: boolean }) {
   const selectThread = useSetAtom(selectThreadAtom);
   const loadMessages = useSetAtom(loadMessagesAtom);
   const toggleStar = useSetAtom(toggleStarAtom);
@@ -95,7 +100,7 @@ const ReceiptCard = memo(function ReceiptCard({ thread }: { thread: Thread }) {
           <div className="flex items-center gap-2 group-hover:hidden">
             <span
               className="text-xxs font-medium px-2 py-0.5 rounded-full"
-              style={{ color: meta.statusColor, backgroundColor: meta.statusColor + '1a' }}
+              style={{ color: meta.statusColor, backgroundColor: colorBg(meta.statusColor, isDark) }}
             >
               {meta.statusLabel}
             </span>
@@ -181,6 +186,8 @@ const filterOptions: { id: FilterType; label: string; icon: React.ElementType }[
 
 export default function ReceiptsFeed() {
   const threadList = useAtomValue(filteredThreadsAtom);
+  const themeMode = useAtomValue(themeModeAtom);
+  const isDark = themeMode !== 'light';
   const [typeFilter, setTypeFilter] = useState<FilterType>('all');
 
   // Only show filter chips that have matching data
@@ -264,7 +271,7 @@ export default function ReceiptsFeed() {
       <div className="flex-1 overflow-y-auto">
         <div className="mx-auto max-w-2xl px-4 py-3 space-y-2">
           {filtered.map(thread => (
-            <ReceiptCard key={thread.id} thread={thread} />
+            <ReceiptCard key={thread.id} thread={thread} isDark={isDark} />
           ))}
         </div>
       </div>

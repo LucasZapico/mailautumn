@@ -11,7 +11,7 @@ import {
   viewModeAtom, densityAtom, activeCategoryAtom, setActiveCategoryAtom,
   showLabelsAtom, showViewsAtom, showAvatarsAtom, avatarStyleAtom, newsletterViewAtom,
   accountsAtom, checkAccountsAtom, addingAccountAtom,
-  undoSendDelayAtom, setUndoSendDelayAtom, showFormattingToolbarAtom,
+  undoSendDelayAtom, setUndoSendDelayAtom, showFormattingToolbarAtom, showCrmPanelAtom,
 } from '../atoms/app';
 import type { AvatarStyle } from '../atoms/app';
 import {
@@ -148,6 +148,7 @@ function GeneralSettings() {
   const undoSendDelay = useAtomValue(undoSendDelayAtom);
   const setUndoSendDelay = useSetAtom(setUndoSendDelayAtom);
   const [showFormattingToolbar, setShowFormattingToolbar] = useAtom(showFormattingToolbarAtom);
+  const [showCrmPanel, setShowCrmPanel] = useAtom(showCrmPanelAtom);
 
   return (
     <div className="space-y-6">
@@ -209,6 +210,8 @@ function GeneralSettings() {
           <Toggle label="Show labels" checked={showLabels} onChange={setShowLabels} />
           <Toggle label="Show views (Sent, Spam, Trash)" checked={showViews} onChange={setShowViews} />
           <Toggle label="Show sender avatars" checked={showAvatars} onChange={setShowAvatars} />
+          <Toggle label="Show contact panel" checked={showCrmPanel} onChange={setShowCrmPanel} />
+          <p className="text-xxs text-text-tertiary pl-0.5">Show contact details, notes, and interaction history alongside messages.</p>
         </div>
       </section>
 
