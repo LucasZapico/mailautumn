@@ -113,6 +113,22 @@ export const avatarStyleAtom = persistedAtom<AvatarStyle>('pref:avatarStyle', 'm
 export const showFormattingToolbarAtom = persistedAtom<boolean>('pref:showFormattingToolbar', true);
 export const showCrmPanelAtom = persistedAtom<boolean>('pref:showCrmPanel', true);
 
+// ── Animations ──
+
+export type AnimationSpeed = 'off' | 'fast' | 'default' | 'slow';
+export const animationSpeedAtom = persistedAtom<AnimationSpeed>('pref:animationSpeed', 'default');
+
+/** Get CSS transition duration in ms based on setting */
+export const animationDurationAtom = atom((get) => {
+  const speed = get(animationSpeedAtom);
+  switch (speed) {
+    case 'off': return 0;
+    case 'fast': return 100;
+    case 'default': return 200;
+    case 'slow': return 400;
+  }
+});
+
 // ── Compose ──
 
 export interface ComposeState {
@@ -136,7 +152,7 @@ function loadUndoSendDelay(): number {
   try {
     const raw = localStorage.getItem('undo-send-delay');
     if (raw !== null) return parseInt(raw, 10);
-  } catch {}
+  } catch { /* localStorage unavailable */ }
   return 10;
 }
 export const undoSendDelayAtom = atom<number>(loadUndoSendDelay());
@@ -248,9 +264,19 @@ export const togglePinAtom = atom(null, (get, set, threadId: string) => {
 /** Optimistic type overrides — survives loadThreads refreshes until the DB catches up */
 const localTypeOverrides = new Map<string, string>();
 
+const typeLabels: Record<string, string> = {
+  conversation: 'Conversations',
+  newsletter: 'Newsletters',
+  notification: 'Updates',
+  transactional: 'Receipts',
+  marketing: 'Promos',
+  calendar: 'Calendar',
+};
+
 export const setThreadTypeAtom = atom(null, async (get, set, { threadId, type }: { threadId: string; type: string }) => {
   const threads = get(threadsAtom);
   const thread = threads.find(t => t.id === threadId);
+  const prevType = thread?.type;
   // Store local override so loadThreads won't revert it
   localTypeOverrides.set(threadId, type);
   // Optimistic update in-memory
@@ -264,6 +290,18 @@ export const setThreadTypeAtom = atom(null, async (get, set, { threadId, type }:
   } catch {
     // IPC failure — optimistic update stays until next refresh
   }
+  // Toast with undo
+  const { pushToast } = await import('../components/Toast');
+  pushToast(`Moved to ${typeLabels[type] || type}`, prevType ? {
+    label: 'Undo',
+    onClick: () => {
+      localTypeOverrides.set(threadId, prevType);
+      set(threadsAtom, get(threadsAtom).map(t =>
+        t.id === threadId ? { ...t, type: prevType as Thread['type'] } : t
+      ));
+      window.api?.setThreadType(threadId, prevType, senderEmail);
+    },
+  } : undefined);
 });
 
 export const toggleStarAtom = atom(null, (get, set, threadId: string) => {

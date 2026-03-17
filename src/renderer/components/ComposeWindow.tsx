@@ -317,6 +317,16 @@ export default function ComposeWindow() {
     onBlur: () => setFocused(false),
   });
 
+  // Close AI panel on outside click
+  useEffect(() => {
+    if (!aiOpen) return;
+    const handle = (e: MouseEvent) => {
+      if (aiRef.current && !aiRef.current.contains(e.target as Node)) setAiOpen(false);
+    };
+    document.addEventListener('mousedown', handle);
+    return () => document.removeEventListener('mousedown', handle);
+  }, [aiOpen]);
+
   useEffect(() => {
     if (compose && editor) {
       setTimeout(() => editor.commands.focus('end'), 200);
@@ -341,6 +351,14 @@ export default function ComposeWindow() {
   const handleSend = async () => {
     if (!canSend || !sendAccount || !window.api || !editor) return;
 
+    let bodyHtml = editor.getHTML();
+
+    // Append signature if configured for this from-address
+    const sig = await window.api.getSignature?.(fromEmail);
+    if (sig) {
+      bodyHtml += `<div class="email-signature" style="margin-top:16px;padding-top:8px;border-top:1px solid #ddd">${sig}</div>`;
+    }
+
     const draft = {
       id: `local-draft-${Date.now()}`,
       headerMessageId: `<${Date.now()}.${Math.random().toString(36).slice(2)}@mailspring.com>`,
@@ -349,7 +367,7 @@ export default function ComposeWindow() {
       bcc: compose.bcc,
       from: [{ name: fromName, email: fromEmail }],
       subject: compose.subject,
-      body: editor.getHTML(),
+      body: bodyHtml,
       plaintext: false,
       date: Math.floor(Date.now() / 1000),
       version: 1,
@@ -383,16 +401,6 @@ export default function ComposeWindow() {
       }
     }
   };
-
-  // Close AI panel on outside click
-  useEffect(() => {
-    if (!aiOpen) return;
-    const handle = (e: MouseEvent) => {
-      if (aiRef.current && !aiRef.current.contains(e.target as Node)) setAiOpen(false);
-    };
-    document.addEventListener('mousedown', handle);
-    return () => document.removeEventListener('mousedown', handle);
-  }, [aiOpen]);
 
   const handleAIDraft = async () => {
     if (!compose) return;

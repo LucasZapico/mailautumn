@@ -214,7 +214,7 @@ async function classifyBatch(batch: ClassifyRequest[]): Promise<Map<string, Emai
 
   const lines = responseText.trim().split('\n').map(l => l.trim().toLowerCase());
   for (let i = 0; i < batch.length; i++) {
-    let type = lines[i]?.replace(/^\d+[\.\)]\s*/, '').trim() as EmailType;
+    let type = lines[i]?.replace(/^\d+[.)]\s*/, '').trim() as EmailType;
     if (!VALID_TYPES.has(type)) {
       for (const t of VALID_TYPES) {
         if (lines[i]?.includes(t)) { type = t; break; }

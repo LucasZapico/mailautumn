@@ -1,4 +1,5 @@
 import { ipcMain, shell, dialog, BrowserWindow } from 'electron';
+import os from 'os';
 import log from 'electron-log/main';
 import fs from 'fs';
 import path from 'path';
@@ -12,6 +13,7 @@ import { analyzeThread, getCachedAnalysis } from './ai-thread';
 import { generateDraft } from './ai-compose';
 import type { AISettings } from './ai-classify';
 import type { ComposeAIRequest } from './ai-compose';
+import * as signatures from './signatures';
 
 export function registerIpcHandlers(): void {
   // ── Database queries ──
@@ -183,6 +185,21 @@ export function registerIpcHandlers(): void {
     return database.searchAll(query, limit);
   });
 
+  // ── Signatures ──
+
+  ipcMain.handle('signatures:get', (_event, email: string) => {
+    return signatures.getSignature(email);
+  });
+
+  ipcMain.handle('signatures:set', (_event, email: string, html: string) => {
+    signatures.setSignature(email, html);
+    return { success: true };
+  });
+
+  ipcMain.handle('signatures:all', () => {
+    return signatures.getAllSignatures();
+  });
+
   // ── AI Classification ──
 
   ipcMain.handle('ai:get-settings', () => {
@@ -251,7 +268,7 @@ export function registerIpcHandlers(): void {
     }
     const win = BrowserWindow.getFocusedWindow();
     const result = await dialog.showSaveDialog(win!, {
-      defaultPath: path.join(require('os').homedir(), 'Downloads', defaultName),
+      defaultPath: path.join(os.homedir(), 'Downloads', defaultName),
     });
     if (result.canceled || !result.filePath) return { success: false, error: 'Cancelled' };
     try {

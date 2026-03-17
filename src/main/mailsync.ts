@@ -365,6 +365,8 @@ export function startSyncForAccount(account: AccountForSync): void {
 
 /** Manually retry sync for a specific account (called from renderer) */
 export function retrySyncForAccount(accountId: string): boolean {
+  // Dynamic import to avoid circular dependency (accounts imports mailsync)
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const allAccounts = require('./accounts').getAllAccountsForSync();
   const account = allAccounts.find((a: AccountForSync) => a.id === accountId);
   if (!account) return false;

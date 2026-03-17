@@ -324,7 +324,7 @@ export function extractContent(html: string): ExtractionResult {
 
   // Phase 6b: Detect sign-off + signature blocks
   // Look for "Best,\nEmma" or "Cheers,\nLucas" patterns followed by separator/footer
-  if (!removedQuote || true) {
+  {
     const blocks = Array.from(root.childNodes);
     for (let i = blocks.length - 1; i >= 0; i--) {
       const text = (blocks[i].textContent || '').trim();
