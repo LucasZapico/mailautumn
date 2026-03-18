@@ -3,13 +3,14 @@ import {
   IoStarOutline, IoStar, IoArchiveOutline, IoTrashOutline, IoCheckmark,
   IoOpenOutline, IoTimeOutline, IoGitPullRequestOutline, IoCheckmarkCircleOutline,
   IoAtOutline, IoChatbubbleOutline, IoNotificationsOutline, IoRocketOutline,
-  IoWarningOutline, IoGridOutline,
+  IoWarningOutline, IoGridOutline, IoEllipsisHorizontal, IoSwapHorizontalOutline,
 } from 'react-icons/io5';
 import { useAtomValue, useSetAtom } from 'jotai';
-import { filteredThreadsAtom, toggleStarAtom, markReadAtom, archiveThreadAtom, trashThreadAtom, selectThreadAtom, loadMessagesAtom } from '../atoms/app';
+import { filteredThreadsAtom, toggleStarAtom, markReadAtom, archiveThreadAtom, trashThreadAtom, selectThreadAtom, loadMessagesAtom, setThreadTypeAtom } from '../atoms/app';
 import { themeModeAtom } from '../atoms/theme';
 import type { Thread, ThreadMeta } from '../data/types';
 import Avatar from './Avatar';
+import { useContextMenu } from './ContextMenu';
 
 /** Adapt a hex color's background opacity for dark vs light mode */
 function colorBg(hex: string, isDark: boolean): string {
@@ -55,6 +56,8 @@ const UpdateCard = memo(function UpdateCard({ thread, isDark }: { thread: Thread
   const markRead = useSetAtom(markReadAtom);
   const archiveThread = useSetAtom(archiveThreadAtom);
   const trashThread = useSetAtom(trashThreadAtom);
+  const setThreadType = useSetAtom(setThreadTypeAtom);
+  const { show } = useContextMenu();
   const meta = thread.meta as Extract<ThreadMeta, { kind: 'notification' }> | undefined;
   const sender = thread.participants[0];
 
@@ -120,6 +123,18 @@ const UpdateCard = memo(function UpdateCard({ thread, isDark }: { thread: Thread
             </button>
             <button onClick={(e) => { e.stopPropagation(); trashThread(thread.id); }} className="p-1 rounded hover:bg-bg-active cursor-pointer" title="Trash">
               <IoTrashOutline size={13} className="text-text-tertiary" />
+            </button>
+            <button onClick={(e) => {
+              e.stopPropagation();
+              const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+              show(rect.right - 180, rect.bottom + 4, [
+                { label: 'Move to Conversations', icon: <IoSwapHorizontalOutline size={14} />, onClick: () => setThreadType({ threadId: thread.id, type: 'conversation' }) },
+                { label: 'Move to Newsletters', icon: <IoSwapHorizontalOutline size={14} />, onClick: () => setThreadType({ threadId: thread.id, type: 'newsletter' }) },
+                { label: 'Move to Receipts', icon: <IoSwapHorizontalOutline size={14} />, onClick: () => setThreadType({ threadId: thread.id, type: 'transactional' }) },
+                { label: 'Move to Promos', icon: <IoSwapHorizontalOutline size={14} />, onClick: () => setThreadType({ threadId: thread.id, type: 'marketing' }) },
+              ]);
+            }} className="p-1 rounded hover:bg-bg-active cursor-pointer" title="Move to...">
+              <IoEllipsisHorizontal size={13} className="text-text-tertiary" />
             </button>
           </div>
         </div>
