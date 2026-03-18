@@ -25,7 +25,7 @@ import {
 import type { Thread } from '../data/types';
 import { themeModeAtom } from '../atoms/theme';
 import Avatar from './Avatar';
-import EmailBody from './EmailBody';
+import EmailFrame from './EmailFrame';
 
 function formatTime(date: Date): string {
   const now = new Date();
@@ -50,41 +50,6 @@ function stripImages(html: string): string {
   return html
     .replace(/<img[^>]*>/gi, '')
     .replace(/background-image\s*:\s*url\([^)]*\)\s*;?/gi, '');
-}
-
-// -- Sender Filter Bar --
-
-function SenderFilterBar({
-  senders,
-  active,
-  onFilter,
-}: {
-  senders: { name: string; domain: string; count: number }[];
-  active: string | null;
-  onFilter: (domain: string | null) => void;
-}) {
-  return (
-    <div className="flex items-center gap-1.5 px-4 py-2 border-b border-border-secondary overflow-x-auto shrink-0">
-      <button
-        onClick={() => onFilter(null)}
-        className={`px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap transition-colors cursor-pointer
-          ${active === null ? 'bg-accent/15 text-accent' : 'bg-bg-tertiary text-text-secondary hover:text-text-primary'}`}
-      >
-        All
-      </button>
-      {senders.map(s => (
-        <button
-          key={s.domain}
-          onClick={() => onFilter(active === s.domain ? null : s.domain)}
-          className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap transition-colors cursor-pointer
-            ${active === s.domain ? 'bg-accent/15 text-accent' : 'bg-bg-tertiary text-text-secondary hover:text-text-primary'}`}
-        >
-          {s.name}
-          <span className="text-2xs opacity-60">{s.count}</span>
-        </button>
-      ))}
-    </div>
-  );
 }
 
 // -- Newsletter Card --
@@ -211,7 +176,7 @@ const NewsletterCard = memo(function NewsletterCard({
       ) : (
         <div className={`rounded-lg border border-border-secondary overflow-hidden
             ${focused ? 'border-border-secondary/50' : ''}`}>
-          <EmailBody html={bodyHTML} dark={dark} />
+          <EmailFrame html={bodyHTML} dark={dark} />
         </div>
       )}
     </article>
