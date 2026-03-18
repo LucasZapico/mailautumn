@@ -13,6 +13,8 @@ import SettingsPanel from './components/SettingsPanel';
 import CommandPalette from './components/CommandPalette';
 import Onboarding from './components/Onboarding';
 import ComposeWindow from './components/ComposeWindow';
+import ViewTransition from './components/ViewTransition';
+import ToastContainer from './components/Toast';
 import UndoSendToast from './components/UndoSendToast';
 import {
   settingsOpenAtom, viewModeAtom, selectedThreadIdAtom, activeCategoryAtom,
@@ -208,13 +210,19 @@ function MailApp() {
               {isFeedView ? (
                 viewMode === 'split' ? (
                   <>
-                    <FeedView category={activeCategory} />
+                    <ViewTransition viewKey={activeCategory} className="flex-1 flex min-w-0">
+                      <FeedView category={activeCategory} />
+                    </ViewTransition>
                     {selectedThreadId && <MessageView />}
                   </>
                 ) : showFullMessage ? (
-                  <MessageView />
+                  <ViewTransition viewKey={`msg-${selectedThreadId}`} className="flex-1 flex min-w-0">
+                    <MessageView />
+                  </ViewTransition>
                 ) : (
-                  <FeedView category={activeCategory} />
+                  <ViewTransition viewKey={activeCategory} className="flex-1 flex min-w-0">
+                    <FeedView category={activeCategory} />
+                  </ViewTransition>
                 )
               ) : viewMode === 'split' ? (
                 <>
@@ -222,9 +230,9 @@ function MailApp() {
                   <MessageView />
                 </>
               ) : (
-                <>
+                <ViewTransition viewKey={showFullMessage ? `msg-${selectedThreadId}` : 'list'} className="flex-1 flex min-w-0">
                   {showFullMessage ? <MessageView /> : <ThreadList fullWidth />}
-                </>
+                </ViewTransition>
               )}
             </div>
           </>
@@ -242,6 +250,7 @@ function MailApp() {
       <CommandPalette />
       <ComposeButton />
       <UndoSendToast />
+      <ToastContainer />
     </div>
   );
 }
