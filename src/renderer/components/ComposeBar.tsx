@@ -155,8 +155,14 @@ export default function ComposeBar({ thread, onGrow }: { thread: Thread; onGrow?
     if (!canSend || !window.api || !editor) return;
 
     const subject = thread.subject.startsWith('Re:') ? thread.subject : `Re: ${thread.subject}`;
-    const bodyHtml = editor.getHTML();
+    let bodyHtml = editor.getHTML();
     const bodyText = editor.getText();
+
+    // Append signature if configured for this from-address
+    const sig = await window.api.getSignature?.(fromEmail);
+    if (sig) {
+      bodyHtml += `<div class="email-signature" style="margin-top:16px;padding-top:8px;border-top:1px solid #ddd">${sig}</div>`;
+    }
 
     const draft = {
       id: `local-draft-${Date.now()}`,

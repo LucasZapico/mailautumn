@@ -110,6 +110,14 @@ const api = {
     return () => ipcRenderer.removeListener('accounts-updated', handler);
   },
 
+  // Signatures
+  getSignature: (email: string) =>
+    ipcRenderer.invoke('signatures:get', email),
+  setSignature: (email: string, html: string) =>
+    ipcRenderer.invoke('signatures:set', email, html),
+  getAllSignatures: () =>
+    ipcRenderer.invoke('signatures:all'),
+
   // CRM
   crmGetContact: (email: string) =>
     ipcRenderer.invoke('crm:get-contact', email),
