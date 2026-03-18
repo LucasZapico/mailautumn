@@ -119,19 +119,38 @@ export function setOverride(threadId: string, type: EmailType, senderEmail?: str
   saveOverrides();
   log.info(`[overrides] thread ${threadId} → ${type}`);
 
-  // Learn sender rule (skip for 'conversation' — we don't want to block human senders)
+  // Learn sender rule — skip for:
+  // - 'conversation' type (don't block human senders)
+  // - the user's own addresses (the senderEmail comes from the last message,
+  //   which is often the user's own reply — we'd accidentally learn
+  //   "lucas@company.com = newsletter" and break everything)
   if (senderEmail && type !== 'conversation') {
-    loadRules();
     const key = senderEmail.toLowerCase();
-    const existing = senderRules.get(key);
-    if (existing && existing.type === type) {
-      existing.count += 1;
-      existing.ts = Date.now();
-    } else {
-      senderRules.set(key, { type, ts: Date.now(), count: 1 });
+    // Check if this is one of the user's own addresses
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { getAllAccountsForSync } = require('./accounts');
+    const ownEmails = new Set<string>();
+    try {
+      for (const acct of getAllAccountsForSync()) {
+        ownEmails.add(acct.emailAddress.toLowerCase());
+        for (const alias of acct.settings?.aliases || []) {
+          ownEmails.add(alias.toLowerCase());
+        }
+      }
+    } catch { /* ignore */ }
+
+    if (!ownEmails.has(key)) {
+      loadRules();
+      const existing = senderRules.get(key);
+      if (existing && existing.type === type) {
+        existing.count += 1;
+        existing.ts = Date.now();
+      } else {
+        senderRules.set(key, { type, ts: Date.now(), count: 1 });
+      }
+      saveRules();
+      log.info(`[overrides] sender rule: ${senderEmail} → ${type} (count: ${senderRules.get(key)!.count})`);
     }
-    saveRules();
-    log.info(`[overrides] sender rule: ${senderEmail} → ${type} (count: ${senderRules.get(key)!.count})`);
   }
 }
 
