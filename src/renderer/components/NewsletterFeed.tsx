@@ -10,6 +10,8 @@ import {
   IoEyeOutline,
   IoEyeOffOutline,
   IoTimeOutline,
+  IoEllipsisHorizontal,
+  IoSwapHorizontalOutline,
 } from 'react-icons/io5';
 import { useAtomValue, useSetAtom } from 'jotai';
 import {
@@ -21,11 +23,13 @@ import {
   archiveThreadAtom,
   trashThreadAtom,
   selectThreadAtom,
+  setThreadTypeAtom,
 } from '../atoms/app';
 import type { Thread } from '../data/types';
 import { themeModeAtom } from '../atoms/theme';
 import Avatar from './Avatar';
 import EmailFrame from './EmailFrame';
+import { useContextMenu } from './ContextMenu';
 
 function formatTime(date: Date): string {
   const now = new Date();
@@ -72,6 +76,8 @@ const NewsletterCard = memo(function NewsletterCard({
   const markRead = useSetAtom(markReadAtom);
   const archiveThread = useSetAtom(archiveThreadAtom);
   const trashThread = useSetAtom(trashThreadAtom);
+  const setThreadType = useSetAtom(setThreadTypeAtom);
+  const { show } = useContextMenu();
   const message = thread.messages[thread.messages.length - 1];
   const sender = message?.from || thread.participants[0];
   const isLoading = !message?.body;
@@ -129,6 +135,18 @@ const NewsletterCard = memo(function NewsletterCard({
             <IoNotificationsOffOutline size={12} className="text-text-tertiary" />
             <span className="text-xxs text-text-tertiary">Unsub</span>
           </button>
+          <button onClick={(e) => {
+            e.stopPropagation();
+            const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+            show(rect.right - 180, rect.bottom + 4, [
+              { label: 'Move to Conversations', icon: <IoSwapHorizontalOutline size={14} />, onClick: () => setThreadType({ threadId: thread.id, type: 'conversation' }) },
+              { label: 'Move to Updates', icon: <IoSwapHorizontalOutline size={14} />, onClick: () => setThreadType({ threadId: thread.id, type: 'notification' }) },
+              { label: 'Move to Receipts', icon: <IoSwapHorizontalOutline size={14} />, onClick: () => setThreadType({ threadId: thread.id, type: 'transactional' }) },
+              { label: 'Move to Promos', icon: <IoSwapHorizontalOutline size={14} />, onClick: () => setThreadType({ threadId: thread.id, type: 'marketing' }) },
+            ]);
+          }} className="p-1 rounded hover:bg-bg-active cursor-pointer" title="Move to...">
+            <IoEllipsisHorizontal size={13} className="text-text-tertiary" />
+          </button>
           {!isLast && (
             <>
               <div className="w-px h-4 bg-border-primary mx-0.5" />
@@ -176,7 +194,7 @@ const NewsletterCard = memo(function NewsletterCard({
       ) : (
         <div className={`rounded-lg border border-border-secondary overflow-hidden
             ${focused ? 'border-border-secondary/50' : ''}`}>
-          <EmailFrame html={bodyHTML} dark={dark} />
+          <EmailFrame html={bodyHTML} />
         </div>
       )}
     </article>
