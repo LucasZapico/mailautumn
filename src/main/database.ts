@@ -34,7 +34,7 @@ export function openDatabase(): boolean {
     return false;
   }
   try {
-    db = new Database(dbPath, { readonly: true, timeout: 10000 });
+    db = new Database(dbPath, { timeout: 10000 });
     db.pragma('journal_mode = WAL');
     db.pragma('cache_size = 20000');
     log.info(`Database opened: ${dbPath}`);

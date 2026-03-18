@@ -12,8 +12,9 @@ import {
   showLabelsAtom, showViewsAtom, showAvatarsAtom, avatarStyleAtom, newsletterViewAtom,
   accountsAtom, checkAccountsAtom, addingAccountAtom,
   undoSendDelayAtom, setUndoSendDelayAtom, showFormattingToolbarAtom, showCrmPanelAtom,
+  animationSpeedAtom,
 } from '../atoms/app';
-import type { AvatarStyle } from '../atoms/app';
+import type { AvatarStyle, AnimationSpeed } from '../atoms/app';
 import {
   themeModeAtom, accentColorAtom, accentSaturationAtom,
   setThemeModeAtom, setAccentColorAtom, setAccentSaturationAtom,
@@ -149,6 +150,7 @@ function GeneralSettings() {
   const setUndoSendDelay = useSetAtom(setUndoSendDelayAtom);
   const [showFormattingToolbar, setShowFormattingToolbar] = useAtom(showFormattingToolbarAtom);
   const [showCrmPanel, setShowCrmPanel] = useAtom(showCrmPanelAtom);
+  const [animationSpeed, setAnimationSpeed] = useAtom(animationSpeedAtom);
 
   return (
     <div className="space-y-6">
@@ -188,6 +190,10 @@ function GeneralSettings() {
           <Select label="Density" value={density} onChange={v => setDensity(v as Density)} options={[
             { value: 'compact', label: 'Compact' }, { value: 'default', label: 'Default' }, { value: 'relaxed', label: 'Relaxed' },
           ]} />
+          <Select label="Animations" value={animationSpeed} onChange={v => setAnimationSpeed(v as AnimationSpeed)} options={[
+            { value: 'off', label: 'Off' }, { value: 'fast', label: 'Fast (100ms)' },
+            { value: 'default', label: 'Default (200ms)' }, { value: 'slow', label: 'Slow (400ms)' },
+          ]} />
         </div>
       </section>
 
@@ -199,8 +205,8 @@ function GeneralSettings() {
             { value: '10', label: '10 seconds' }, { value: '15', label: '15 seconds' },
             { value: '20', label: '20 seconds' }, { value: '30', label: '30 seconds' },
           ]} />
-          <Toggle label="Show formatting toolbar" checked={showFormattingToolbar} onChange={setShowFormattingToolbar} />
-          <p className="text-xxs text-text-tertiary pl-0.5">Markdown is always supported — **bold**, _italic_, `code`, [links](url), lists, and quotes.</p>
+          <Toggle label="Show formatting toolbar in compose" checked={showFormattingToolbar} onChange={setShowFormattingToolbar} />
+          <p className="text-xxs text-text-tertiary pl-0.5">Show bold, italic, link, and list buttons above the compose editor. Markdown shortcuts always work regardless of this setting.</p>
         </div>
       </section>
 
@@ -326,11 +332,98 @@ function AppearanceSettings() {
   );
 }
 
+const DEFAULT_SIGNATURES: { label: string; html: string }[] = [
+  {
+    label: 'Simple',
+    html: '<p>Best,<br>{{name}}</p>',
+  },
+  {
+    label: 'Professional',
+    html: '<p>Best regards,<br><strong>{{name}}</strong><br><span style="color:#888">{{email}}</span></p>',
+  },
+  {
+    label: 'Minimal',
+    html: '<p>— {{name}}</p>',
+  },
+];
+
+function SignatureEditor({ email, name }: { email: string; name: string }) {
+  const [sig, setSig] = useState('');
+  const [loaded, setLoaded] = useState(false);
+  const [saved, setSaved] = useState(true);
+
+  useEffect(() => {
+    window.api?.getSignature(email).then((s: string) => {
+      setSig(s || '');
+      setLoaded(true);
+    });
+  }, [email]);
+
+  const handleSave = async () => {
+    await window.api?.setSignature(email, sig);
+    setSaved(true);
+  };
+
+  const applyTemplate = (html: string) => {
+    const filled = html
+      .replace(/\{\{name\}\}/g, name || email.split('@')[0])
+      .replace(/\{\{email\}\}/g, email);
+    setSig(filled);
+    setSaved(false);
+  };
+
+  if (!loaded) return null;
+
+  return (
+    <div className="mt-2 space-y-2">
+      <div className="flex items-center gap-2">
+        <span className="text-xs text-text-secondary">{email}</span>
+        {!saved && <span className="text-2xs text-accent">unsaved</span>}
+      </div>
+      <textarea
+        value={sig}
+        onChange={e => { setSig(e.target.value); setSaved(false); }}
+        placeholder="HTML signature (leave empty for no signature)"
+        rows={4}
+        className="w-full text-xs text-text-primary bg-bg-tertiary border border-border-primary rounded-lg px-3 py-2 outline-none resize-y font-mono"
+      />
+      <div className="flex items-center gap-2">
+        <button
+          onClick={handleSave}
+          disabled={saved}
+          className="px-3 py-1.5 rounded-md text-xs font-medium bg-accent text-white disabled:opacity-40 hover:bg-accent/90 transition-colors cursor-pointer disabled:cursor-default"
+        >
+          Save
+        </button>
+        <div className="flex items-center gap-1 ml-auto">
+          <span className="text-2xs text-text-tertiary mr-1">Templates:</span>
+          {DEFAULT_SIGNATURES.map(t => (
+            <button
+              key={t.label}
+              onClick={() => applyTemplate(t.html)}
+              className="px-2 py-1 rounded text-2xs text-text-secondary bg-bg-tertiary hover:bg-bg-hover transition-colors cursor-pointer"
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+      </div>
+      {sig && (
+        <div className="px-3 py-2 rounded-md border border-border-secondary bg-bg-primary">
+          <div className="text-2xs text-text-tertiary mb-1">Preview</div>
+          <div className="text-xs text-text-primary" dangerouslySetInnerHTML={{ __html: sig }} />
+        </div>
+      )}
+    </div>
+  );
+}
+
 function AccountsSettings() {
   const accounts = useAtomValue(accountsAtom);
   const checkAccounts = useSetAtom(checkAccountsAtom);
   const setAddingAccount = useSetAtom(addingAccountAtom);
   const [removing, setRemoving] = useState<string | null>(null);
+  const [expandedAccount, setExpandedAccount] = useState<string | null>(null);
 
   const handleRemove = async (id: string) => {
     if (!confirm('Remove this account? Email data will remain on the server.')) return;
@@ -361,25 +454,47 @@ function AccountsSettings() {
           <p className="text-sm text-text-tertiary">No accounts connected</p>
         ) : (
           <div className="space-y-2">
-            {accounts.map(a => (
-              <div key={a.id} className="flex items-center justify-between px-3 py-2.5 rounded-lg border border-border-primary bg-bg-primary">
-                <div className="flex items-center gap-3">
-                  {providerIcon(a.provider)}
-                  <div>
-                    <div className="text-sm text-text-primary font-medium">{a.name}</div>
-                    <div className="text-xs text-text-tertiary">{a.email}</div>
+            {accounts.map(a => {
+              const allEmails = [a.email, ...(a.aliases || [])];
+              const isExpanded = expandedAccount === a.id;
+              return (
+                <div key={a.id} className="rounded-lg border border-border-primary bg-bg-primary overflow-hidden">
+                  <div className="flex items-center justify-between px-3 py-2.5">
+                    <button
+                      onClick={() => setExpandedAccount(isExpanded ? null : a.id)}
+                      className="flex items-center gap-3 flex-1 text-left cursor-pointer"
+                    >
+                      {providerIcon(a.provider)}
+                      <div>
+                        <div className="text-sm text-text-primary font-medium">{a.name}</div>
+                        <div className="text-xs text-text-tertiary">
+                          {a.email}
+                          {(a.aliases?.length || 0) > 0 && (
+                            <span className="text-text-tertiary"> + {a.aliases!.length} alias{a.aliases!.length > 1 ? 'es' : ''}</span>
+                          )}
+                        </div>
+                      </div>
+                    </button>
+                    <button
+                      onClick={() => handleRemove(a.id)}
+                      disabled={removing === a.id}
+                      className="p-1.5 rounded-md text-text-tertiary hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer disabled:opacity-50"
+                      title="Remove account"
+                    >
+                      <IoTrashOutline size={14} />
+                    </button>
                   </div>
+                  {isExpanded && (
+                    <div className="px-3 pb-3 border-t border-border-secondary">
+                      <div className="pt-3 mb-2 text-xs font-medium text-text-tertiary uppercase tracking-wider">Signatures</div>
+                      {allEmails.map(email => (
+                        <SignatureEditor key={email} email={email} name={a.name} />
+                      ))}
+                    </div>
+                  )}
                 </div>
-                <button
-                  onClick={() => handleRemove(a.id)}
-                  disabled={removing === a.id}
-                  className="p-1.5 rounded-md text-text-tertiary hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer disabled:opacity-50"
-                  title="Remove account"
-                >
-                  <IoTrashOutline size={14} />
-                </button>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </section>

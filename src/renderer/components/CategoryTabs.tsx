@@ -15,6 +15,8 @@ const tabs: { id: CategoryTab; label: string }[] = [
   { id: 'marketing', label: 'Promos' },
 ];
 
+const feedCategories = new Set(['newsletter', 'marketing', 'notification', 'transactional']);
+
 export default function CategoryTabs() {
   const activeCategory = useAtomValue(activeCategoryAtom);
   const setActiveCategory = useSetAtom(setActiveCategoryAtom);
@@ -39,7 +41,8 @@ export default function CategoryTabs() {
     return addrs;
   }, [accounts, activeAccountId]);
 
-  const showAliases = allAddresses.length > 1;
+  const isFeedView = feedCategories.has(activeCategory);
+  const showAliases = allAddresses.length > 1 && !isFeedView;
 
   return (
     <div className="shrink-0 bg-bg-primary border-b border-border-secondary">
