@@ -190,7 +190,12 @@ export function extractContent(html: string): ExtractionResult {
     return { html: html || '', confidence: 1 };
   }
 
-  const doc = parser.parseFromString(`<div id="root">${html}</div>`, 'text/html');
+  // Strip <style> and <script> tags before parsing to prevent CSS/JS leaking into the app
+  const safeHtml = html
+    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, '')
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '');
+
+  const doc = parser.parseFromString(`<div id="root">${safeHtml}</div>`, 'text/html');
   const root = doc.getElementById('root')!;
   let removedQuote = false;
 

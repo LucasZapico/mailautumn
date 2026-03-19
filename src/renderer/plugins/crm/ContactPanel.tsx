@@ -53,7 +53,7 @@ function EditableField({ icon: Icon, label, value, onSave, placeholder, multilin
         {editing ? (
           multiline ? (
             <textarea
-              ref={inputRef as any}
+              ref={inputRef as React.Ref<never>} /* useRef<input|textarea> union — safe cast */
               value={draft}
               onChange={e => setDraft(e.target.value)}
               onBlur={save}
@@ -64,7 +64,7 @@ function EditableField({ icon: Icon, label, value, onSave, placeholder, multilin
             />
           ) : (
             <input
-              ref={inputRef as any}
+              ref={inputRef as React.Ref<never>} /* useRef<input|textarea> union — safe cast */
               type="text"
               value={draft}
               onChange={e => setDraft(e.target.value)}

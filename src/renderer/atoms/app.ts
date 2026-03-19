@@ -113,6 +113,9 @@ export const avatarStyleAtom = persistedAtom<AvatarStyle>('pref:avatarStyle', 'm
 export const showFormattingToolbarAtom = persistedAtom<boolean>('pref:showFormattingToolbar', true);
 export const showCrmPanelAtom = persistedAtom<boolean>('pref:showCrmPanel', false);
 
+export type AfterAction = 'inbox' | 'next';
+export const afterActionAtom = persistedAtom<AfterAction>('pref:afterAction', 'next');
+
 // ── Animations ──
 
 export type AnimationSpeed = 'off' | 'fast' | 'default' | 'slow';
@@ -318,7 +321,47 @@ export const toggleStarAtom = atom(null, (get, set, threadId: string) => {
       type: 'ChangeStarredTask',
       starred: !thread.starred,
       threadIds: [threadId],
-    }).catch(err => console.error('[task] fire-and-forget failed:', err));
+    }).catch(() => {/* fire-and-forget — optimistic UI already applied */});
+  }
+});
+
+export const markAllReadAtom = atom(null, (get, set) => {
+  const threads = get(filteredThreadsAtom);
+  const unread = threads.filter(t => t.unread);
+  if (unread.length === 0) return;
+
+  markOptimistic();
+
+  // Update unread counts
+  const counts = new Map(get(accountUnreadCountsAtom));
+  for (const t of unread) {
+    counts.set(t.accountId, Math.max(0, (counts.get(t.accountId) || 0) - 1));
+  }
+  set(accountUnreadCountsAtom, counts);
+
+  // Optimistic update
+  set(threadsAtom, get(threadsAtom).map(t => {
+    if (unread.some(u => u.id === t.id)) {
+      return { ...t, unread: false, messages: t.messages.map(m => ({ ...m, unread: false })) };
+    }
+    return t;
+  }));
+
+  // Queue tasks grouped by account
+  if (window.api) {
+    const byAccount = new Map<string, string[]>();
+    for (const t of unread) {
+      const ids = byAccount.get(t.accountId) || [];
+      ids.push(t.id);
+      byAccount.set(t.accountId, ids);
+    }
+    for (const [accountId, threadIds] of byAccount) {
+      window.api.queueTask(accountId, {
+        type: 'ChangeUnreadTask',
+        unread: false,
+        threadIds,
+      }).catch(() => {/* fire-and-forget — optimistic UI already applied */});
+    }
   }
 });
 
@@ -341,7 +384,7 @@ export const markReadAtom = atom(null, (get, set, threadId: string) => {
       type: 'ChangeUnreadTask',
       unread: false,
       threadIds: [threadId],
-    }).catch(err => console.error('[task] fire-and-forget failed:', err));
+    }).catch(() => {/* fire-and-forget — optimistic UI already applied */});
   }
 });
 
@@ -383,6 +426,30 @@ async function ensureCategories(get: any, set: any): Promise<CategoryInfo[]> {
   return cats;
 }
 
+/** After removing a thread, navigate to next thread or back to list based on setting */
+function navigateAfterAction(get: any, set: any, threadId: string) {
+  const pref = get(afterActionAtom) as AfterAction;
+  if (pref === 'next') {
+    const threads = get(filteredThreadsAtom) as Thread[];
+    const idx = threads.findIndex(t => t.id === threadId);
+    if (idx < 0) { set(selectedThreadIdAtom, null); return; }
+    // Look forward for the next non-pinned thread (skip pinned — they stick to the top)
+    let next: Thread | undefined;
+    for (let i = idx + 1; i < threads.length; i++) {
+      if (!threads[i].pinned) { next = threads[i]; break; }
+    }
+    // If nothing forward, look backward
+    if (!next) {
+      for (let i = idx - 1; i >= 0; i--) {
+        if (!threads[i].pinned) { next = threads[i]; break; }
+      }
+    }
+    set(selectedThreadIdAtom, next?.id || null);
+  } else {
+    set(selectedThreadIdAtom, null);
+  }
+}
+
 export const archiveThreadAtom = atom(null, async (get, set, threadId: string) => {
   const thread = get(threadsAtom).find(t => t.id === threadId);
   if (!thread || !window.api) return;
@@ -398,8 +465,8 @@ export const archiveThreadAtom = atom(null, async (get, set, threadId: string) =
     counts.set(thread.accountId, Math.max(0, (counts.get(thread.accountId) || 0) - 1));
     set(accountUnreadCountsAtom, counts);
   }
+  navigateAfterAction(get, set, threadId);
   set(threadsAtom, get(threadsAtom).filter(t => t.id !== threadId));
-  set(selectedThreadIdAtom, null);
   // Gmail: remove inbox label
   const result = await window.api.queueTask(thread.accountId, {
     type: 'ChangeLabelsTask',
@@ -424,8 +491,8 @@ export const trashThreadAtom = atom(null, async (get, set, threadId: string) => 
     counts.set(thread.accountId, Math.max(0, (counts.get(thread.accountId) || 0) - 1));
     set(accountUnreadCountsAtom, counts);
   }
+  navigateAfterAction(get, set, threadId);
   set(threadsAtom, get(threadsAtom).filter(t => t.id !== threadId));
-  set(selectedThreadIdAtom, null);
   // Move to trash
   window.api.queueTask(thread.accountId, {
     type: 'ChangeFolderTask',
@@ -520,7 +587,7 @@ export const loadThreadsAtom = atom(null, async (get, set) => {
     const viewQuery = resolveViewQuery(sidebarView, categories, accountId);
     const dbThreads = await window.api.getThreads({
       accountId: accountId || undefined,
-      limit: 200,
+      limit: 500,
       ...viewQuery,
     });
     const pinnedIds = get(pinnedThreadIdsAtom);
@@ -545,6 +612,7 @@ export const loadThreadsAtom = atom(null, async (get, set) => {
       type: (localTypeOverrides.get(t.id) || t.emailType || 'conversation') as Thread['type'],
       messages: prevMessagesMap.get(t.id) || [],
       meta: t.meta,
+      listUnsubscribe: t.listUnsubscribe || undefined,
     }));
     set(threadsAtom, threads);
 
@@ -633,7 +701,7 @@ export const checkAccountsAtom = atom(null, async (_get, set) => {
               prev.map(a => a.id === acct.id ? { ...a, aliases } : a)
             );
           }
-        }).catch(err => console.error('[task] fire-and-forget failed:', err));
+        }).catch(() => {/* fire-and-forget — optimistic UI already applied */});
       }
     }
 

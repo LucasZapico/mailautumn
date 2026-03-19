@@ -217,15 +217,20 @@ const MessageItem = memo(function MessageItem({ message, grouped, extraction, us
     ]);
   };
 
-  const extracted = extraction?.html ?? message.body;
+  // Strip <style> and <script> tags to prevent CSS/JS leaking into the app DOM
+  const sanitize = (html: string) => html
+    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, '')
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '');
+
+  const extracted = extraction?.html ?? sanitize(message.body);
   const wasStripped = extraction ? extraction.html !== message.body : false;
-  const displayBody = expanded ? message.body : extracted;
+  const displayBody = expanded ? sanitize(message.body) : extracted;
 
   const attachments = message.attachments;
 
   const bodyEl = useIframe ? (
     <>
-      <EmailFrame html={message.body} dark={themeMode !== 'light'} />
+      <EmailFrame html={message.body} />
       {attachments && attachments.length > 0 && <AttachmentList attachments={attachments} />}
     </>
   ) : (

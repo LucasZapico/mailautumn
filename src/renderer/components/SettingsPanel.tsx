@@ -12,9 +12,9 @@ import {
   showLabelsAtom, showViewsAtom, showAvatarsAtom, avatarStyleAtom, newsletterViewAtom,
   accountsAtom, checkAccountsAtom, addingAccountAtom,
   undoSendDelayAtom, setUndoSendDelayAtom, showFormattingToolbarAtom, showCrmPanelAtom,
-  animationSpeedAtom,
+  animationSpeedAtom, afterActionAtom,
 } from '../atoms/app';
-import type { AvatarStyle, AnimationSpeed } from '../atoms/app';
+import type { AvatarStyle, AnimationSpeed, AfterAction } from '../atoms/app';
 import {
   themeModeAtom, accentColorAtom, accentSaturationAtom,
   setThemeModeAtom, setAccentColorAtom, setAccentSaturationAtom,
@@ -151,6 +151,7 @@ function GeneralSettings() {
   const [showFormattingToolbar, setShowFormattingToolbar] = useAtom(showFormattingToolbarAtom);
   const [showCrmPanel, setShowCrmPanel] = useAtom(showCrmPanelAtom);
   const [animationSpeed, setAnimationSpeed] = useAtom(animationSpeedAtom);
+  const [afterAction, setAfterAction] = useAtom(afterActionAtom);
 
   return (
     <div className="space-y-6">
@@ -193,6 +194,10 @@ function GeneralSettings() {
           <Select label="Animations" value={animationSpeed} onChange={v => setAnimationSpeed(v as AnimationSpeed)} options={[
             { value: 'off', label: 'Off' }, { value: 'fast', label: 'Fast (100ms)' },
             { value: 'default', label: 'Default (200ms)' }, { value: 'slow', label: 'Slow (400ms)' },
+          ]} />
+          <Select label="After archive/trash" value={afterAction} onChange={v => setAfterAction(v as AfterAction)} options={[
+            { value: 'next', label: 'Go to next email' },
+            { value: 'inbox', label: 'Return to inbox' },
           ]} />
         </div>
       </section>
