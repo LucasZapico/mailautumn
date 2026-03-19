@@ -1,6 +1,10 @@
 /**
  * CRM database — lightweight contact metadata store.
  * Uses the shared edgehill.db instance (mailsync ignores unknown tables).
+ *
+ * Note: SQL query results use `as any` casts because better-sqlite3 returns
+ * untyped rows. Each result is immediately passed to `rowToContact()` which
+ * safely maps to the typed CrmContact interface.
  */
 
 import log from 'electron-log/main';

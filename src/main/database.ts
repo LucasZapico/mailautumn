@@ -183,7 +183,11 @@ function parseThread(row: ThreadRow): DbThread {
     }
   }
 
-  const meta = extractMeta(emailType, subject, snippet, senderName, senderEmail);
+  // Strip HTML from body for meta extraction (plain text search)
+  const bodyText = row.bodyValue
+    ? row.bodyValue.replace(/<[^>]*>/g, ' ').replace(/&\w+;/g, ' ').replace(/\s+/g, ' ').slice(0, 2000)
+    : '';
+  const meta = extractMeta(emailType, subject, snippet, senderName, senderEmail, bodyText);
 
   return {
     id: d.id,
@@ -612,6 +616,7 @@ export function searchContacts(query: string, accountId?: string, limit = 10): {
 
 // ── Full-text search (FTS5) ──
 
+// Note: FTS5 query results use `as any[]` — better-sqlite3 returns untyped rows
 export interface SearchResult {
   type: 'thread' | 'contact';
   id: string;

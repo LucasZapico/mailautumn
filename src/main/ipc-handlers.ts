@@ -241,7 +241,7 @@ export function registerIpcHandlers(): void {
   // ── Manual type overrides ──
 
   ipcMain.handle('thread:set-type', (_event, threadId: string, type: string, senderEmail?: string) => {
-    setOverride(threadId, type as any, senderEmail);
+    setOverride(threadId, type as import('./classify-email').EmailType, senderEmail);
     return { success: true };
   });
 

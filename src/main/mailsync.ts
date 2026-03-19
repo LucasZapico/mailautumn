@@ -147,7 +147,7 @@ export class MailsyncProcess {
 
       if (proc.stdin) {
         proc.stdin.setDefaultEncoding('utf-8');
-        (proc.stdin as any).highWaterMark = 1024 * 1024;
+        (proc.stdin as NodeJS.WritableStream & { highWaterMark: number }).highWaterMark = 1024 * 1024; // Node writable streams support this but types don't expose it
       }
     });
   }

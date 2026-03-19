@@ -270,7 +270,7 @@ export async function refreshMissingAvatars(): Promise<boolean> {
       if (account.provider === 'gmail') {
         url = await fetchGmailAvatar(account.emailAddress);
       }
-      // TODO: add O365 avatar refresh
+      // O365 avatar refresh not yet implemented — requires Graph API token refresh
 
       if (url) {
         updateAccountAvatar(account.id, url);

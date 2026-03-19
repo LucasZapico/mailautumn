@@ -228,14 +228,16 @@ function extractTransactionMeta(
   subject: string,
   snippet: string,
   senderName: string,
+  bodyText?: string,
 ): TransactionMeta {
   let type: TxnType = 'payment';
   let status = 'confirmed';
   let statusLabel = 'Confirmed';
   let statusColor = '#4a9eff';
+  const searchText = bodyText || '';
 
   for (const p of TXN_PATTERNS) {
-    if (p.pattern.test(subject) || p.pattern.test(snippet)) {
+    if (p.pattern.test(subject) || p.pattern.test(snippet) || p.pattern.test(searchText)) {
       type = p.type;
       status = p.status;
       statusLabel = p.statusLabel;
@@ -244,21 +246,37 @@ function extractTransactionMeta(
     }
   }
 
-  // Extract amount from subject or snippet
-  const amountMatch = subject.match(AMOUNT_RE) || snippet.match(AMOUNT_RE);
+  // Extract amount — search subject, snippet, then body
+  const amountMatch = subject.match(AMOUNT_RE) || snippet.match(AMOUNT_RE) || searchText.match(AMOUNT_RE);
   const amount = amountMatch ? amountMatch[0] : undefined;
 
   // Merchant is sender name
   const merchant = senderName || undefined;
 
-  // Build details
+  // Build details — search all sources
   const details: { label: string; value: string }[] = [];
 
-  const invoiceMatch = subject.match(INVOICE_RE) || snippet.match(INVOICE_RE);
+  const invoiceMatch = subject.match(INVOICE_RE) || snippet.match(INVOICE_RE) || searchText.match(INVOICE_RE);
   if (invoiceMatch) details.push({ label: 'Invoice', value: invoiceMatch[0] });
 
-  const trackingMatch = snippet.match(TRACKING_RE);
+  const trackingMatch = snippet.match(TRACKING_RE) || searchText.match(TRACKING_RE);
   if (trackingMatch) details.push({ label: 'Tracking', value: trackingMatch[0] });
+
+  // Extract order number from body: "Order #12345" or "Order Number: 12345"
+  const orderMatch = searchText.match(/order\s*(?:#|number:?\s*)(\w[\w-]{3,})/i);
+  if (orderMatch) details.push({ label: 'Order', value: '#' + orderMatch[1] });
+
+  // Extract date from body: "Date: March 15, 2026" or "Transaction Date: 03/15/2026"
+  const dateMatch = searchText.match(/(?:date|purchased|ordered)\s*:?\s*(\w+ \d{1,2},?\s*\d{4}|\d{1,2}\/\d{1,2}\/\d{2,4})/i);
+  if (dateMatch) details.push({ label: 'Date', value: dateMatch[1] });
+
+  // Extract items from body — look for lines with prices
+  const items: string[] = [];
+  const itemMatches = searchText.matchAll(/([A-Z][\w\s]{3,40})\s+\$[\d,.]+/g);
+  for (const m of itemMatches) {
+    const item = m[1].trim();
+    if (item.length > 3 && items.length < 5) items.push(item);
+  }
 
   // CTA label based on type
   const ctaLabels: Record<TxnType, string> = {
@@ -278,6 +296,7 @@ function extractTransactionMeta(
     statusColor,
     amount,
     merchant,
+    items: items.length > 0 ? items : undefined,
     details,
     ctaLabel: ctaLabels[type],
   };
@@ -303,12 +322,13 @@ export function extractMeta(
   snippet: string,
   senderName: string,
   senderEmail: string,
+  bodyText?: string,
 ): ThreadMeta | undefined {
   if (emailType === 'notification') {
     return extractNotificationMeta(subject, snippet, senderName, senderEmail);
   }
   if (emailType === 'transactional') {
-    return extractTransactionMeta(subject, snippet, senderName);
+    return extractTransactionMeta(subject, snippet, senderName, bodyText);
   }
   return undefined;
 }
