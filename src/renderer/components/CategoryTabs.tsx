@@ -1,8 +1,10 @@
 import { useMemo } from 'react';
 import { useAtomValue, useSetAtom } from 'jotai';
+import { IoCheckmarkDoneOutline } from 'react-icons/io5';
 import {
   activeCategoryAtom, setActiveCategoryAtom, unreadCountAtom,
   activeAccountIdAtom, accountsAtom, activeAliasFilterAtom, setAliasFilterAtom,
+  markAllReadAtom,
 } from '../atoms/app';
 import type { CategoryTab } from '../data/types';
 
@@ -25,6 +27,8 @@ export default function CategoryTabs() {
   const accounts = useAtomValue(accountsAtom);
   const aliasFilter = useAtomValue(activeAliasFilterAtom);
   const setAlias = useSetAtom(setAliasFilterAtom);
+  const markAllRead = useSetAtom(markAllReadAtom);
+  const currentUnread = getUnreadCount(activeCategory);
 
   // Collect all addresses: primary emails + aliases from all accounts (when "All") or selected account
   const allAddresses = useMemo(() => {
@@ -70,6 +74,16 @@ export default function CategoryTabs() {
             </button>
           );
         })}
+        {currentUnread > 0 && (
+          <button
+            onClick={() => markAllRead()}
+            className="ml-auto flex items-center gap-1 px-2 py-1 rounded-md text-2xs text-text-tertiary hover:text-text-secondary hover:bg-bg-hover transition-colors cursor-pointer"
+            title="Mark all as read"
+          >
+            <IoCheckmarkDoneOutline size={13} />
+            <span>Mark all read</span>
+          </button>
+        )}
       </div>
 
       {/* Alias filter row */}

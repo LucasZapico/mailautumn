@@ -131,19 +131,33 @@ const NewsletterCard = memo(function NewsletterCard({
           <button onClick={() => trashThread(thread.id)} className="p-1 rounded hover:bg-bg-active cursor-pointer" title="Trash">
             <IoTrashOutline size={13} className="text-text-tertiary" />
           </button>
-          <button className="flex items-center gap-1 px-1.5 py-0.5 rounded hover:bg-bg-active cursor-pointer" title="Unsubscribe">
-            <IoNotificationsOffOutline size={12} className="text-text-tertiary" />
-            <span className="text-xxs text-text-tertiary">Unsub</span>
-          </button>
+          {thread.listUnsubscribe && (() => {
+            const urlMatch = thread.listUnsubscribe!.match(/<(https?:\/\/[^>]+)>/);
+            const url = urlMatch?.[1];
+            return url ? (
+              <button onClick={() => window.open(url, '_blank')} className="flex items-center gap-1 px-1.5 py-0.5 rounded hover:bg-bg-active cursor-pointer" title="Unsubscribe">
+                <IoNotificationsOffOutline size={12} className="text-text-tertiary" />
+                <span className="text-xxs text-text-tertiary">Unsub</span>
+              </button>
+            ) : null;
+          })()}
           <button onClick={(e) => {
             e.stopPropagation();
             const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-            show(rect.right - 180, rect.bottom + 4, [
-              { label: 'Move to Conversations', icon: <IoSwapHorizontalOutline size={14} />, onClick: () => setThreadType({ threadId: thread.id, type: 'conversation' }) },
-              { label: 'Move to Updates', icon: <IoSwapHorizontalOutline size={14} />, onClick: () => setThreadType({ threadId: thread.id, type: 'notification' }) },
-              { label: 'Move to Receipts', icon: <IoSwapHorizontalOutline size={14} />, onClick: () => setThreadType({ threadId: thread.id, type: 'transactional' }) },
-              { label: 'Move to Promos', icon: <IoSwapHorizontalOutline size={14} />, onClick: () => setThreadType({ threadId: thread.id, type: 'marketing' }) },
-            ]);
+            const allTypes = [
+              { type: 'conversation', label: 'Conversations' },
+              { type: 'newsletter', label: 'Newsletters' },
+              { type: 'notification', label: 'Updates' },
+              { type: 'transactional', label: 'Receipts' },
+              { type: 'marketing', label: 'Promos' },
+            ];
+            show(rect.right - 180, rect.bottom + 4,
+              allTypes.filter(t => t.type !== thread.type).map(t => ({
+                label: `Move to ${t.label}`,
+                icon: <IoSwapHorizontalOutline size={14} />,
+                onClick: () => setThreadType({ threadId: thread.id, type: t.type }),
+              }))
+            );
           }} className="p-1 rounded hover:bg-bg-active cursor-pointer" title="Move to...">
             <IoEllipsisHorizontal size={13} className="text-text-tertiary" />
           </button>

@@ -127,12 +127,20 @@ const UpdateCard = memo(function UpdateCard({ thread, isDark }: { thread: Thread
             <button onClick={(e) => {
               e.stopPropagation();
               const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-              show(rect.right - 180, rect.bottom + 4, [
-                { label: 'Move to Conversations', icon: <IoSwapHorizontalOutline size={14} />, onClick: () => setThreadType({ threadId: thread.id, type: 'conversation' }) },
-                { label: 'Move to Newsletters', icon: <IoSwapHorizontalOutline size={14} />, onClick: () => setThreadType({ threadId: thread.id, type: 'newsletter' }) },
-                { label: 'Move to Receipts', icon: <IoSwapHorizontalOutline size={14} />, onClick: () => setThreadType({ threadId: thread.id, type: 'transactional' }) },
-                { label: 'Move to Promos', icon: <IoSwapHorizontalOutline size={14} />, onClick: () => setThreadType({ threadId: thread.id, type: 'marketing' }) },
-              ]);
+              const allTypes = [
+                { type: 'conversation', label: 'Conversations' },
+                { type: 'newsletter', label: 'Newsletters' },
+                { type: 'notification', label: 'Updates' },
+                { type: 'transactional', label: 'Receipts' },
+                { type: 'marketing', label: 'Promos' },
+              ];
+              show(rect.right - 180, rect.bottom + 4,
+                allTypes.filter(t => t.type !== thread.type).map(t => ({
+                  label: `Move to ${t.label}`,
+                  icon: <IoSwapHorizontalOutline size={14} />,
+                  onClick: () => setThreadType({ threadId: thread.id, type: t.type }),
+                }))
+              );
             }} className="p-1 rounded hover:bg-bg-active cursor-pointer" title="Move to...">
               <IoEllipsisHorizontal size={13} className="text-text-tertiary" />
             </button>

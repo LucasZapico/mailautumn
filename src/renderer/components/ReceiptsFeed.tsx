@@ -69,31 +69,19 @@ const ReceiptCard = memo(function ReceiptCard({ thread, isDark }: { thread: Thre
     if (thread.unread) markRead(thread.id);
   };
 
-  if (!meta || meta.kind !== 'transaction') {
-    return (
-      <div onClick={openThread} className="group flex gap-3 p-4 rounded-lg border border-border-secondary hover:border-border-primary/80 transition-colors cursor-pointer">
-        <Avatar contact={sender} size={28} />
-        <div className="flex-1 min-w-0">
-          <p className="text-sm text-text-primary truncate">{thread.subject}</p>
-          <p className="text-xs text-text-secondary truncate mt-0.5">{thread.snippet}</p>
-        </div>
-      </div>
-    );
-  }
-
-  const TypeIcon = typeIcons[meta.type] || IoCardOutline;
-  const label = typeLabels[meta.type] || meta.type;
+  const TypeIcon = meta?.kind === 'transaction' ? (typeIcons[meta.type] || IoCardOutline) : IoCardOutline;
+  const label = meta?.kind === 'transaction' ? (typeLabels[meta.type] || meta.type) : 'Receipt';
 
   return (
     <div onClick={openThread} className={`group relative rounded-lg border border-border-secondary hover:border-border-primary/80 transition-colors overflow-hidden cursor-pointer ${thread.unread ? 'bg-bg-secondary/40' : ''}`}>
       {/* Status stripe at top */}
-      <div className="h-0.5" style={{ backgroundColor: meta.statusColor }} />
+      <div className="h-0.5" style={{ backgroundColor: meta?.statusColor || '#4a9eff' }} />
 
       <div className="p-4">
         {/* Header: type icon + label + status/time OR quick actions on hover */}
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
-            <TypeIcon size={16} style={{ color: meta.statusColor }} />
+            <TypeIcon size={16} style={{ color: meta?.statusColor || '#4a9eff' }} />
             <span className="text-xxs font-semibold uppercase tracking-wider text-text-tertiary">{label}</span>
             <span className="text-xxs text-text-tertiary">·</span>
             <span className="text-xxs text-text-tertiary">{sender.name}</span>
@@ -104,9 +92,9 @@ const ReceiptCard = memo(function ReceiptCard({ thread, isDark }: { thread: Thre
           <div className="flex items-center gap-2 group-hover:hidden">
             <span
               className="text-xxs font-medium px-2 py-0.5 rounded-full"
-              style={{ color: meta.statusColor, backgroundColor: colorBg(meta.statusColor, isDark) }}
+              style={{ color: meta?.statusColor || '#4a9eff', backgroundColor: colorBg(meta?.statusColor || '#4a9eff', isDark) }}
             >
-              {meta.statusLabel}
+              {meta?.statusLabel || 'Receipt'}
             </span>
             <span className="text-xxs text-text-tertiary">{formatTime(thread.lastMessageDate)}</span>
           </div>
@@ -132,28 +120,44 @@ const ReceiptCard = memo(function ReceiptCard({ thread, isDark }: { thread: Thre
             <button onClick={(e) => {
               e.stopPropagation();
               const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-              show(rect.right - 180, rect.bottom + 4, [
-                { label: 'Move to Conversations', icon: <IoSwapHorizontalOutline size={14} />, onClick: () => setThreadType({ threadId: thread.id, type: 'conversation' }) },
-                { label: 'Move to Newsletters', icon: <IoSwapHorizontalOutline size={14} />, onClick: () => setThreadType({ threadId: thread.id, type: 'newsletter' }) },
-                { label: 'Move to Updates', icon: <IoSwapHorizontalOutline size={14} />, onClick: () => setThreadType({ threadId: thread.id, type: 'notification' }) },
-                { label: 'Move to Promos', icon: <IoSwapHorizontalOutline size={14} />, onClick: () => setThreadType({ threadId: thread.id, type: 'marketing' }) },
-              ]);
+              const allTypes = [
+                { type: 'conversation', label: 'Conversations' },
+                { type: 'newsletter', label: 'Newsletters' },
+                { type: 'notification', label: 'Updates' },
+                { type: 'transactional', label: 'Receipts' },
+                { type: 'marketing', label: 'Promos' },
+              ];
+              show(rect.right - 180, rect.bottom + 4,
+                allTypes.filter(t => t.type !== thread.type).map(t => ({
+                  label: `Move to ${t.label}`,
+                  icon: <IoSwapHorizontalOutline size={14} />,
+                  onClick: () => setThreadType({ threadId: thread.id, type: t.type }),
+                }))
+              );
             }} className="p-1 rounded hover:bg-bg-active cursor-pointer" title="Move to...">
               <IoEllipsisHorizontal size={13} className="text-text-tertiary" />
             </button>
           </div>
         </div>
 
+        {/* Subject — always visible */}
+        <p className="text-sm text-text-primary truncate mb-2">{thread.subject}</p>
+
         {/* Amount + Merchant (prominent for payments/rides/subscriptions) */}
-        {meta.amount && (
+        {meta?.amount && (
           <div className="flex items-baseline gap-2.5 mb-3">
             <span className="text-2xl font-bold text-text-primary tracking-tight">{meta.amount}</span>
             {meta.merchant && <span className="text-sm text-text-secondary">{meta.merchant}</span>}
           </div>
         )}
 
+        {/* Snippet when no amount — show some context */}
+        {!meta?.amount && thread.snippet && (
+          <p className="text-xs text-text-secondary truncate mb-2">{thread.snippet}</p>
+        )}
+
         {/* Details grid */}
-        {meta.details.length > 0 && (
+        {meta?.details && meta.details.length > 0 && (
           <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 mb-3">
             {meta.details.map(d => (
               <div key={d.label} className="flex items-baseline gap-2 min-w-0">
@@ -165,7 +169,7 @@ const ReceiptCard = memo(function ReceiptCard({ thread, isDark }: { thread: Thre
         )}
 
         {/* Items list */}
-        {meta.items && meta.items.length > 0 && (
+        {meta?.items && meta.items.length > 0 && (
           <div className="mb-3 pl-3 border-l-2 border-border-primary space-y-1">
             {meta.items.map((item, i) => (
               <div key={i} className="text-xs text-text-secondary">{item}</div>
@@ -174,7 +178,7 @@ const ReceiptCard = memo(function ReceiptCard({ thread, isDark }: { thread: Thre
         )}
 
         {/* CTA */}
-        {meta.ctaLabel && (
+        {meta?.ctaLabel && (
           <div className="mt-1">
             <button className="text-xxs text-accent hover:underline flex items-center gap-1 cursor-pointer">
               {meta.ctaLabel} <IoOpenOutline size={10} />

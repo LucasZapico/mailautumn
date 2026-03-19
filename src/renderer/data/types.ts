@@ -88,6 +88,7 @@ export interface Thread {
   type: EmailType;
   messages: Message[];
   meta?: ThreadMeta;
+  listUnsubscribe?: string;
 }
 
 export interface SidebarCategory {
