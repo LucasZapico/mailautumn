@@ -3,6 +3,7 @@ import {
   IoMailOutline, IoStarOutline, IoTimeOutline, IoSendOutline,
   IoDocumentTextOutline, IoArchiveOutline, IoAlertCircleOutline,
   IoTrashOutline, IoPricetagOutline, IoSyncOutline, IoWarningOutline,
+  IoPeopleOutline,
 } from 'react-icons/io5';
 import {
   showLabelsAtom, showViewsAtom, activeSidebarViewAtom,
@@ -19,6 +20,7 @@ const iconMap: Record<string, React.ElementType> = {
   sent: IoSendOutline,
   drafts: IoDocumentTextOutline,
   archive: IoArchiveOutline,
+  contacts: IoPeopleOutline,
   spam: IoAlertCircleOutline,
   trash: IoTrashOutline,
 };
@@ -64,6 +66,7 @@ const favorites: { id: SidebarView; name: string }[] = [
 
 const views: { id: SidebarView; name: string }[] = [
   { id: 'sent', name: 'Sent' },
+  { id: 'contacts', name: 'Contacts' },
   { id: 'spam', name: 'Spam' },
   { id: 'archive', name: 'Archive' },
   { id: 'trash', name: 'Trash' },

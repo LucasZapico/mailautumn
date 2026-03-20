@@ -16,6 +16,7 @@ import ComposeWindow from './components/ComposeWindow';
 import ViewTransition from './components/ViewTransition';
 import ToastContainer from './components/Toast';
 import UndoSendToast from './components/UndoSendToast';
+import ContactsListView from './plugins/crm/ContactsListView';
 import {
   settingsOpenAtom, viewModeAtom, selectedThreadIdAtom, activeCategoryAtom,
   hasAccountsAtom, checkAccountsAtom, loadThreadsAtom, loadMessagesAtom,
@@ -206,10 +207,12 @@ function MailApp() {
           <ComposeWindow />
         ) : (
           <>
-            <CategoryTabs />
+            {sidebarView !== 'contacts' && <CategoryTabs />}
             <SyncErrorBanner />
             <div className="flex-1 flex min-h-0">
-              {isFeedView ? (
+              {sidebarView === 'contacts' ? (
+                <ContactsListView />
+              ) : isFeedView ? (
                 viewMode === 'split' ? (
                   <>
                     <ViewTransition viewKey={activeCategory} className="flex-1 flex min-w-0">

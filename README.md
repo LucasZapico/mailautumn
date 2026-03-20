@@ -16,54 +16,76 @@ A huge thank you to the Mailspring team for doing all the heavy lifting.
 - Slack-style threaded conversations with content extraction (strips quoted text, signatures, attribution lines)
 - Inline replies at the bottom of the thread
 - Prev/next thread navigation
+- Pin threads to top
+- After-action navigation — go to next email or back to inbox (configurable)
 
 **Smart email classification**
 - Automatic categorization: Conversations, Newsletters, Updates, Receipts, Promos
-- Heuristic classifier with AI fallback for edge cases
-- Instagram-style newsletter feed, structured notification and receipt cards
-- Manual override — reclassify any thread with one click
+- Conservative heuristic classifier (defaults to conversation, only classifies when signals are strong)
+- Instagram-style newsletter feed with sender filter chips
+- Structured notification cards with service badges and action summaries
+- Structured receipt cards with amounts, order numbers, tracking, and line items extracted from email body
+- Manual override — reclassify any thread with one click + undo toast
+- Bulk reclassify — "Move all from @domain" reclassifies every thread from a domain at once
+- Sender rules — learned automatically when you reclassify (per-sender and per-domain)
+- Domain auto-promotion — after 2+ senders from the same domain get the same type, a domain rule is created
+- Mark all as read per category
+- Unsubscribe button for newsletters (opens List-Unsubscribe URL)
+- View and manage learned rules in Settings > Troubleshooting
 
 **AI-powered**
 - Thread summaries and sentiment analysis
 - Draft replies and new emails with AI (tone selection, custom instructions)
 - Rewrite mode — type a draft, then ask AI to polish it
+- AI gets full thread context + your current draft
 - Multi-provider: OpenAI, Anthropic, Ollama, Open WebUI
 
 **CRM plugin**
-- Lightweight contact management built as a plugin
-- Opt-in contacts organized by bucket (per-business/project)
+- Lightweight contact management built as the first internal plugin
+- Opt-in contacts organized by tags (per-business/project)
 - Auto-extracts name, title, company, phone, website, LinkedIn from email signatures
 - Editable fields, tags, notes, interaction history
+- Collapsible contact panel alongside message view
 - Toggle on/off in settings
 
 **Search**
-- Unified fuzzy search across 70K+ threads, contacts, and email content (Cmd/Ctrl+K)
+- Unified fuzzy search across threads, contacts, and email content (Cmd/Ctrl+K)
 - FTS5 full-text search powered by mailsync's search index
 - Command palette with working navigation, compose, and AI commands
+- Results grouped by type (Contacts, Threads, Commands)
 
 **Multi-account**
 - Gmail and Outlook (O365) via OAuth
 - IMAP/SMTP for any provider
 - Per-account activity bar with unread counts
 - Alias detection and send-as support
+- From picker filtered by active account (shows all accounts in aggregated inbox)
 
 **Compose**
-- Rich text editor with formatting toolbar
+- Rich text editor (TipTap v2) with formatting toolbar
 - Markdown support (bold, italic, code, links, lists, quotes)
 - Undo send with configurable delay (5-30 seconds)
 - AI draft generation with thread context
+- Per-address email signatures (HTML, with templates)
+- Contact autocomplete
 
 **Theming**
 - 4 theme modes (light, dark, system, auto)
 - 6 accent colors with 5 saturation levels
 - 3 density modes (compact, default, relaxed)
 - Smart contrast text (luminance-based)
+- Configurable animation speed (off, fast, default, slow)
+- View transitions between categories and threads
 
 **Other**
-- Right-click context menus with spellcheck
+- Right-click context menus with spellcheck and link handling
 - Inline attachment previews (images, PDFs)
+- Toast notifications with undo actions
 - Keyboard shortcuts
 - Plugin architecture (slot-based, internal)
+- Single instance lock
+- Sync retry with exponential backoff
+- Troubleshooting panel with log access and rule management
 
 ## Stack
 
@@ -128,18 +150,20 @@ npm run typecheck
 
 Things we'd like to get to when bandwidth allows. No promises, no timelines.
 
-- [ ] Newsletter dark mode rendering (inline rendering works, styling needs refinement)
-- [ ] Smarter email classifier (reduce cross-feed duplicates, possibly fine-tuned model)
+- [ ] AI-first email classification (classify every thread via LLM, cache results)
+- [ ] Newsletter dark mode rendering (render as-is works, dark adaptation needs CSS parser)
 - [ ] Search within a conversation thread
-- [ ] Command palette improvements (contact actions, more commands)
+- [ ] Block sender by email or domain
+- [ ] Signature editor with WYSIWYG (currently raw HTML textarea)
 - [ ] Focus/Zen modes with desaturation
 - [ ] The Screener (triage unknown senders)
 - [ ] Calendar integration
 - [ ] Snooze
+- [ ] Thread pagination / infinite scroll (currently loads 500)
 - [ ] Plugin API for external plugins
 - [ ] macOS and Windows builds
-- [ ] Notification system
-- [ ] Contacts sidebar view (browse CRM buckets)
+- [ ] Desktop notification system
+- [ ] Contacts sidebar view (browse CRM tags)
 - [ ] Thread-level CRM tags in thread list
 - [ ] Import/export CRM data
 

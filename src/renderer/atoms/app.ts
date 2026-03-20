@@ -83,7 +83,7 @@ export const updateSyncStatusAtom = atom(null, (get, set, update: { accountId: s
 
 // ── Navigation ──
 
-export type SidebarView = 'inbox' | 'starred' | 'snoozed' | 'sent' | 'drafts' | 'archive' | 'spam' | 'trash';
+export type SidebarView = 'inbox' | 'starred' | 'snoozed' | 'sent' | 'drafts' | 'archive' | 'spam' | 'trash' | 'contacts';
 
 export const activeAccountIdAtom = atom<string | null>(null);
 export const activeCategoryAtom = atom<CategoryTab>('conversation');
