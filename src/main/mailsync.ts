@@ -1,5 +1,6 @@
 import { spawn, ChildProcess } from 'child_process';
 import { Readable } from 'stream';
+import fs from 'fs';
 import path from 'path';
 import readline from 'readline';
 import log from 'electron-log/main';
@@ -22,6 +23,11 @@ function resolveMailsyncDir(): string {
 
 const MAILSYNC_DIR = resolveMailsyncDir();
 const MAILSYNC_PATH = path.join(MAILSYNC_DIR, 'mailsync.bin');
+
+// Log paths at startup for debugging packaged-app issues
+log.info(`[mailsync] dir: ${MAILSYNC_DIR}`);
+log.info(`[mailsync] bin: ${MAILSYNC_PATH} (exists: ${fs.existsSync(MAILSYNC_PATH)}, isPackaged: ${app.isPackaged})`);
+log.info(`[mailsync] CONFIG_DIR: ${getConfigDir()}`);
 
 export interface AccountForSync {
   id: string;
@@ -63,8 +69,8 @@ function makeIdentity(emailAddress: string) {
     emailAddress,
     object: 'identity',
     createdAt: new Date().toISOString(),
-    stripePlan: 'Basic',
-    stripePlanEffective: 'Basic',
+    stripePlan: 'Pro',
+    stripePlanEffective: 'Pro',
     featureUsage: {},
   };
 }
@@ -161,31 +167,51 @@ export class MailsyncProcess {
     this.ready = false;
     this.pendingMessages = [];
 
-    log.info(`mailsync [sync] starting for ${this.account.emailAddress}`);
-    this.proc = spawn(MAILSYNC_PATH, args, { env: makeEnv() });
+    const env = makeEnv();
+    log.info(`mailsync [sync] starting for ${this.account.emailAddress} (LD_LIBRARY_PATH=${env.LD_LIBRARY_PATH?.slice(0, 100)})`);
+    this.proc = spawn(MAILSYNC_PATH, args, {
+      env,
+      cwd: MAILSYNC_DIR,
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
 
     if (this.proc.stdin) {
       this.proc.stdin.setDefaultEncoding('utf-8');
       (this.proc.stdin as any).highWaterMark = 1024 * 1024;
     }
 
-    // Send credentials IMMEDIATELY after spawn. The binary reads account +
-    // identity from stdin before it outputs anything on stdout. Waiting for
-    // stdout first (like the original Mailspring code does) creates a deadlock
-    // when the binary doesn't flush its initial prompt to pipes.
+    // Wait for the binary's first stdout output before sending credentials.
+    // The binary prints "Waiting for Account JSON:" on stdout, then reads stdin.
+    // Writing to stdin before the binary is ready races the pipe — in packaged
+    // builds the binary starts faster than the pipe flushes, causing code 2 exits.
     const accountData = `${serializeAccount(this.account)}\n${JSON.stringify(makeIdentity(this.account.emailAddress))}\n`;
-    this.proc.stdin!.write(accountData, 'utf-8', () => {
-      this.ready = true;
-      for (const msg of this.pendingMessages) {
-        this.proc!.stdin!.write(JSON.stringify(msg) + '\n');
-      }
-      this.pendingMessages = [];
-      log.info(`mailsync [sync] credentials sent for ${this.account.emailAddress}`);
+    let credentialsSent = false;
+
+    const sendCredentials = () => {
+      if (credentialsSent || !this.proc?.stdin?.writable) return;
+      credentialsSent = true;
+      this.proc.stdin.write(accountData, 'utf-8', () => {
+        this.ready = true;
+        for (const msg of this.pendingMessages) {
+          this.proc!.stdin!.write(JSON.stringify(msg) + '\n');
+        }
+        this.pendingMessages = [];
+        log.info(`mailsync [sync] credentials sent for ${this.account.emailAddress}`);
+      });
+    };
+
+    // Log raw stdout for debugging (captures even partial/non-line output)
+    this.proc.stdout?.once('data', (chunk) => {
+      log.info(`mailsync [sync] first stdout for ${this.account.emailAddress}: ${chunk.toString().slice(0, 200)}`);
     });
 
     // Parse stdout lines as JSON deltas
     const rl = readline.createInterface({ input: this.proc.stdout! });
     rl.on('line', (line) => {
+      // Send credentials on first stdout (binary is ready to read)
+      if (!credentialsSent) {
+        sendCredentials();
+      }
       try {
         const delta = JSON.parse(line) as SyncDelta;
         onDelta(delta);
@@ -193,6 +219,14 @@ export class MailsyncProcess {
         log.debug(`mailsync stdout (non-JSON): ${line.slice(0, 200)}`);
       }
     });
+
+    // Fallback: if no stdout within 3s, send credentials anyway (prevents hang)
+    const fallbackTimer = setTimeout(() => {
+      if (!credentialsSent) {
+        log.warn(`mailsync [sync] no stdout after 3s for ${this.account.emailAddress}, sending credentials anyway`);
+        sendCredentials();
+      }
+    }, 3000);
 
     // Capture stderr for error reporting
     let stderrBuf = '';
@@ -203,6 +237,7 @@ export class MailsyncProcess {
     });
 
     this.proc.on('close', (code) => {
+      clearTimeout(fallbackTimer);
       log.info(`mailsync [sync] exited: code=${code}`);
       this.proc = null;
       onClose(code, stderrBuf || undefined);
