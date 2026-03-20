@@ -64,6 +64,7 @@ export default function ContactsListView() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filterTag, setFilterTag] = useState<string>('');
+  const [filterStaleness, setFilterStaleness] = useState<'' | 'fresh' | 'warm' | 'stale' | 'cold'>('');
   const [sortField, setSortField] = useState<SortField>('lastInteraction');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
   const [tagDropdown, setTagDropdown] = useState(false);
@@ -88,6 +89,10 @@ export default function ContactsListView() {
 
     if (filterTag) {
       list = list.filter(c => c.tag === filterTag);
+    }
+
+    if (filterStaleness) {
+      list = list.filter(c => staleness(c.lastInteraction || '') === filterStaleness);
     }
 
     if (search.trim()) {
@@ -119,7 +124,7 @@ export default function ContactsListView() {
     });
 
     return list;
-  }, [contacts, filterTag, search, sortField, sortDir]);
+  }, [contacts, filterTag, filterStaleness, search, sortField, sortDir]);
 
   const toggleSort = (field: SortField) => {
     if (sortField === field) {
@@ -207,6 +212,38 @@ export default function ContactsListView() {
               </div>
             )}
           </div>
+        </div>
+
+        {/* Staleness filter pills */}
+        <div className="flex items-center gap-1.5 mt-2">
+          <span className="text-2xs text-text-tertiary mr-1">Last contacted:</span>
+          {([
+            { id: '' as const, label: 'All' },
+            { id: 'fresh' as const, label: 'This week' },
+            { id: 'warm' as const, label: '2-4 weeks' },
+            { id: 'stale' as const, label: '1-3 months' },
+            { id: 'cold' as const, label: '3+ months' },
+          ]).map(f => (
+            <button
+              key={f.id}
+              onClick={() => setFilterStaleness(f.id)}
+              className={`px-2 py-0.5 rounded-full text-2xs cursor-pointer transition-colors ${
+                filterStaleness === f.id
+                  ? f.id === 'cold' ? 'bg-red-500/15 text-red-400 font-medium'
+                    : f.id === 'stale' ? 'bg-orange-500/15 text-orange-400 font-medium'
+                    : f.id === 'warm' ? 'bg-yellow-500/15 text-yellow-400 font-medium'
+                    : f.id === 'fresh' ? 'bg-green-500/15 text-green-400 font-medium'
+                    : 'bg-accent/15 text-accent font-medium'
+                  : 'text-text-tertiary hover:text-text-secondary hover:bg-bg-hover'
+              }`}
+            >
+              {f.label}
+              {f.id && (() => {
+                const count = contacts.filter(c => staleness(c.lastInteraction || '') === f.id).length;
+                return count > 0 ? ` (${count})` : '';
+              })()}
+            </button>
+          ))}
         </div>
       </div>
 
