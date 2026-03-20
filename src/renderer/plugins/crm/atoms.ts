@@ -8,6 +8,7 @@ export interface CrmContact {
   notes: string;
   tags: string[];
   tag: string;
+  followUp: string;
   starred: boolean;
   createdAt: string;
   updatedAt: string;

@@ -58,6 +58,15 @@ export function openCrmDb(): void {
     }
   } catch { /* column already renamed or table just created */ }
 
+  // Add follow_up column if missing
+  try {
+    const cols = db.prepare("PRAGMA table_info(CrmContact)").all() as { name: string }[];
+    if (!cols.some(c => c.name === 'follow_up')) {
+      db.exec("ALTER TABLE CrmContact ADD COLUMN follow_up TEXT NOT NULL DEFAULT ''");
+      log.info('[crm] added follow_up column');
+    }
+  } catch { /* column already exists */ }
+
   // Create tag index (safe now — column is guaranteed to be 'tag')
   db.exec("CREATE INDEX IF NOT EXISTS idx_crm_contact_tag ON CrmContact(tag)");
 
@@ -78,6 +87,7 @@ export interface CrmContact {
   notes: string;
   tags: string[];
   tag: string;
+  followUp: string;
   starred: boolean;
   createdAt: string;
   updatedAt: string;
@@ -94,6 +104,7 @@ function rowToContact(row: any): CrmContact {
     notes: row.notes,
     tags: JSON.parse(row.tags || '[]'),
     tag: row.tag || '',
+    followUp: row.follow_up || '',
     starred: !!row.starred,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -129,6 +140,7 @@ export function upsertContact(contact: Partial<CrmContact> & { email: string }):
     if (contact.notes !== undefined) { updates.push('notes = ?'); params.push(contact.notes); }
     if (contact.tags !== undefined) { updates.push('tags = ?'); params.push(JSON.stringify(contact.tags)); }
     if (contact.tag !== undefined) { updates.push('tag = ?'); params.push(contact.tag); }
+    if (contact.followUp !== undefined) { updates.push('follow_up = ?'); params.push(contact.followUp); }
     if (contact.starred !== undefined) { updates.push('starred = ?'); params.push(contact.starred ? 1 : 0); }
     if (updates.length > 0) {
       updates.push("updated_at = datetime('now')");
@@ -137,8 +149,8 @@ export function upsertContact(contact: Partial<CrmContact> & { email: string }):
     }
   } else {
     db.prepare(`
-      INSERT INTO CrmContact (email, name, company, phone, notes, tags, tag, starred)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO CrmContact (email, name, company, phone, notes, tags, tag, follow_up, starred)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       email,
       contact.name || '',
@@ -147,6 +159,7 @@ export function upsertContact(contact: Partial<CrmContact> & { email: string }):
       contact.notes || '',
       JSON.stringify(contact.tags || []),
       contact.tag || '',
+      contact.followUp || '',
       contact.starred ? 1 : 0,
     );
   }

@@ -52,7 +52,7 @@ const stalenessLabels = {
   cold: '3+ months',
 };
 
-type SortField = 'name' | 'lastInteraction' | 'interactionCount' | 'tag';
+type SortField = 'name' | 'lastInteraction' | 'interactionCount' | 'tag' | 'followUp';
 type SortDir = 'asc' | 'desc';
 
 export default function ContactsListView() {
@@ -65,6 +65,7 @@ export default function ContactsListView() {
   const [search, setSearch] = useState('');
   const [filterTag, setFilterTag] = useState<string>('');
   const [filterStaleness, setFilterStaleness] = useState<'' | 'fresh' | 'warm' | 'stale' | 'cold'>('');
+  const [filterFollowUp, setFilterFollowUp] = useState<'' | 'overdue' | 'upcoming' | 'any'>('');
   const [sortField, setSortField] = useState<SortField>('lastInteraction');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
   const [tagDropdown, setTagDropdown] = useState(false);
@@ -95,6 +96,17 @@ export default function ContactsListView() {
       list = list.filter(c => staleness(c.lastInteraction || '') === filterStaleness);
     }
 
+    if (filterFollowUp) {
+      const today = new Date().toISOString().slice(0, 10);
+      if (filterFollowUp === 'overdue') {
+        list = list.filter(c => c.followUp && c.followUp <= today);
+      } else if (filterFollowUp === 'upcoming') {
+        list = list.filter(c => c.followUp && c.followUp > today);
+      } else if (filterFollowUp === 'any') {
+        list = list.filter(c => !!c.followUp);
+      }
+    }
+
     if (search.trim()) {
       const q = search.toLowerCase();
       list = list.filter(c =>
@@ -119,12 +131,15 @@ export default function ContactsListView() {
         case 'tag':
           cmp = (a.tag || '').localeCompare(b.tag || '');
           break;
+        case 'followUp':
+          cmp = (a.followUp || '9999').localeCompare(b.followUp || '9999');
+          break;
       }
       return sortDir === 'desc' ? -cmp : cmp;
     });
 
     return list;
-  }, [contacts, filterTag, filterStaleness, search, sortField, sortDir]);
+  }, [contacts, filterTag, filterStaleness, filterFollowUp, search, sortField, sortDir]);
 
   const toggleSort = (field: SortField) => {
     if (sortField === field) {
@@ -245,6 +260,38 @@ export default function ContactsListView() {
             </button>
           ))}
         </div>
+        {/* Follow-up filter pills */}
+        <div className="flex items-center gap-1.5 mt-1.5">
+          <span className="text-2xs text-text-tertiary mr-1">Follow-up:</span>
+          {([
+            { id: '' as const, label: 'All' },
+            { id: 'overdue' as const, label: 'Overdue' },
+            { id: 'upcoming' as const, label: 'Upcoming' },
+            { id: 'any' as const, label: 'Has date' },
+          ]).map(f => {
+            const today = new Date().toISOString().slice(0, 10);
+            const count = f.id === 'overdue' ? contacts.filter(c => c.followUp && c.followUp <= today).length
+              : f.id === 'upcoming' ? contacts.filter(c => c.followUp && c.followUp > today).length
+              : f.id === 'any' ? contacts.filter(c => !!c.followUp).length
+              : 0;
+            return (
+              <button
+                key={f.id}
+                onClick={() => setFilterFollowUp(f.id)}
+                className={`px-2 py-0.5 rounded-full text-2xs cursor-pointer transition-colors ${
+                  filterFollowUp === f.id
+                    ? f.id === 'overdue' ? 'bg-red-500/15 text-red-400 font-medium'
+                      : f.id === 'upcoming' ? 'bg-blue-500/15 text-blue-400 font-medium'
+                      : f.id === 'any' ? 'bg-purple-500/15 text-purple-400 font-medium'
+                      : 'bg-accent/15 text-accent font-medium'
+                    : 'text-text-tertiary hover:text-text-secondary hover:bg-bg-hover'
+                }`}
+              >
+                {f.label}{f.id && count > 0 ? ` (${count})` : ''}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* Table header */}
@@ -252,7 +299,8 @@ export default function ContactsListView() {
         <div className="w-52">{headerBtn('name', 'Name')}</div>
         <div className="w-20">{headerBtn('tag', 'Tag')}</div>
         <div className="w-24">{headerBtn('lastInteraction', 'Last Contact')}</div>
-        <div className="w-16">{headerBtn('interactionCount', 'Emails')}</div>
+        <div className="w-24">{headerBtn('followUp', 'Follow Up')}</div>
+        <div className="w-14">{headerBtn('interactionCount', 'Emails')}</div>
         <div className="flex-1 text-2xs font-medium text-text-tertiary uppercase tracking-wider">Company</div>
       </div>
 
@@ -299,8 +347,19 @@ export default function ContactsListView() {
                   </span>
                 </div>
 
+                {/* Follow up */}
+                <div className="w-24">
+                  {contact.followUp ? (
+                    <span className={`text-xs ${new Date(contact.followUp) <= new Date() ? 'text-red-400 font-medium' : 'text-text-secondary'}`}>
+                      {new Date(contact.followUp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                    </span>
+                  ) : (
+                    <span className="text-2xs text-text-tertiary">—</span>
+                  )}
+                </div>
+
                 {/* Count */}
-                <div className="w-16 text-xs text-text-secondary">
+                <div className="w-14 text-xs text-text-secondary">
                   {contact.interactionCount || 0}
                 </div>
 

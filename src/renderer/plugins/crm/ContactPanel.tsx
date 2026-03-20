@@ -12,9 +12,9 @@ import {
   IoChevronDown, IoChevronUp, IoAddOutline, IoCloseOutline,
   IoMailOutline, IoArrowForwardOutline, IoArrowBackOutline,
   IoGlobeOutline, IoLogoLinkedin, IoPersonAddOutline,
-  IoTrashOutline, IoFolderOutline,
+  IoTrashOutline, IoFolderOutline, IoCalendarOutline,
 } from 'react-icons/io5';
-import { selectedThreadAtom, accountEmailsAtom, selectThreadAtom } from '../../atoms/app';
+import { selectedThreadAtom, accountEmailsAtom, selectThreadAtom, crmPanelExpandedAtom } from '../../atoms/app';
 import {
   activeCrmContactAtom, crmInteractionsAtom, crmTagsAtom,
   loadCrmContactAtom, saveCrmContactAtom, trackInteractionAtom,
@@ -311,16 +311,22 @@ export default function ContactPanel({ expanded = true }: { expanded?: boolean }
   const [renameValue, setRenameValue] = useState('');
   const renameInputRef = useRef<HTMLInputElement>(null);
 
+  const setExpanded = useSetAtom(crmPanelExpandedAtom);
+
   if (!thread || !primaryEmail) return null;
 
   const participantName = thread.participants.find(p => p.email === primaryEmail)?.name || '';
   const displayNameShort = contact?.name || sigInfo?.name || participantName || primaryEmail.split('@')[0];
 
-  // Collapsed — thin strip with initial and contact name
+  // Collapsed — thin strip, click to expand
   if (!expanded) {
     return (
-      <div className="w-10 border-l border-border-secondary bg-bg-primary flex flex-col items-center py-3 gap-2 shrink-0">
-        <div className="w-7 h-7 rounded-full bg-accent/15 flex items-center justify-center" title={`${displayNameShort} (${primaryEmail})`}>
+      <button
+        onClick={() => setExpanded(true)}
+        className="w-10 border-l border-border-secondary bg-bg-primary flex flex-col items-center py-3 gap-2 shrink-0 hover:bg-bg-hover transition-colors cursor-pointer"
+        title="Expand contact panel"
+      >
+        <div className="w-7 h-7 rounded-full bg-accent/15 flex items-center justify-center">
           <span className="text-xs font-medium text-accent">{displayNameShort.charAt(0).toUpperCase()}</span>
         </div>
         <span className="text-2xs text-text-tertiary [writing-mode:vertical-rl] rotate-180 truncate max-h-32">
@@ -329,7 +335,7 @@ export default function ContactPanel({ expanded = true }: { expanded?: boolean }
         {contact && (
           <div className="w-1.5 h-1.5 rounded-full bg-accent/50 mt-auto mb-1" title="In CRM" />
         )}
-      </div>
+      </button>
     );
   }
 
@@ -449,6 +455,32 @@ export default function ContactPanel({ expanded = true }: { expanded?: boolean }
           >
             <IoTrashOutline size={13} />
           </button>
+        </div>
+
+        {/* Follow-up date */}
+        <div className="flex items-center gap-2 mt-2">
+          <IoCalendarOutline size={12} className="text-text-tertiary shrink-0" />
+          <span className="text-2xs text-text-tertiary shrink-0">Follow up:</span>
+          <input
+            type="date"
+            value={contact.followUp || ''}
+            onChange={e => update('followUp', e.target.value)}
+            className="flex-1 bg-transparent text-2xs text-text-secondary outline-none cursor-pointer"
+          />
+          {contact.followUp && (
+            <>
+              {new Date(contact.followUp) <= new Date() && (
+                <span className="text-2xs text-red-400 font-medium">Overdue</span>
+              )}
+              <button
+                onClick={() => update('followUp', '')}
+                className="p-0.5 rounded text-text-tertiary hover:text-text-secondary cursor-pointer"
+                title="Clear follow-up"
+              >
+                <IoCloseOutline size={11} />
+              </button>
+            </>
+          )}
         </div>
       </div>
 
