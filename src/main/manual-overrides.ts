@@ -103,10 +103,18 @@ export function getOverride(threadId: string): EmailType | null {
   return overrides.get(threadId)?.type ?? null;
 }
 
-/** Check for a learned sender rule */
+/** Check for a learned sender rule (exact email first, then domain) */
 export function getSenderRule(senderEmail: string): EmailType | null {
   loadRules();
-  return senderRules.get(senderEmail.toLowerCase())?.type ?? null;
+  const email = senderEmail.toLowerCase();
+  // Exact sender match
+  const exact = senderRules.get(email);
+  if (exact) return exact.type;
+  // Domain match (stored as @domain.com)
+  const domain = '@' + (email.split('@')[1] || '');
+  const domainRule = senderRules.get(domain);
+  if (domainRule) return domainRule.type;
+  return null;
 }
 
 /**
@@ -148,10 +156,70 @@ export function setOverride(threadId: string, type: EmailType, senderEmail?: str
       } else {
         senderRules.set(key, { type, ts: Date.now(), count: 1 });
       }
+
+      // Auto-promote to domain rule after 2+ senders from the same domain
+      // classified as the same type (e.g., 2 Google Search Console emails → Updates)
+      const domain = '@' + (key.split('@')[1] || '');
+      if (domain.length > 1 && !senderRules.has(domain)) {
+        let domainCount = 0;
+        for (const [ruleKey, rule] of senderRules) {
+          if (ruleKey.endsWith(domain) && !ruleKey.startsWith('@') && rule.type === type) {
+            domainCount++;
+          }
+        }
+        if (domainCount >= 2) {
+          senderRules.set(domain, { type, ts: Date.now(), count: domainCount });
+          log.info(`[overrides] auto domain rule: ${domain} → ${type} (${domainCount} senders)`);
+        }
+      }
+
       saveRules();
       log.info(`[overrides] sender rule: ${senderEmail} → ${type} (count: ${senderRules.get(key)!.count})`);
     }
   }
+}
+
+/** Set a domain-level rule (e.g., @google.com → notification) */
+export function setDomainRule(domain: string, type: EmailType): void {
+  loadRules();
+  const key = domain.startsWith('@') ? domain.toLowerCase() : `@${domain.toLowerCase()}`;
+  senderRules.set(key, { type, ts: Date.now(), count: 1 });
+  saveRules();
+  log.info(`[overrides] domain rule: ${key} → ${type}`);
+}
+
+/** Get all sender/domain rules for the settings UI */
+export function getAllSenderRules(): { rules: { key: string; type: string; count: number }[]; overrideCount: number } {
+  loadRules();
+  loadOverrides();
+  const rules = [...senderRules.entries()].map(([key, rule]) => ({
+    key,
+    type: rule.type,
+    count: rule.count,
+  }));
+  // Sort: domain rules first, then by key
+  rules.sort((a, b) => {
+    if (a.key.startsWith('@') !== b.key.startsWith('@')) return a.key.startsWith('@') ? -1 : 1;
+    return a.key.localeCompare(b.key);
+  });
+  return { rules, overrideCount: overrides.size };
+}
+
+/** Remove a sender or domain rule */
+export function removeSenderRule(key: string): void {
+  loadRules();
+  if (senderRules.delete(key.toLowerCase())) {
+    saveRules();
+    log.info(`[overrides] removed sender rule: ${key}`);
+  }
+}
+
+/** Clear all thread-level overrides */
+export function clearAllOverrides(): void {
+  loadOverrides();
+  overrides.clear();
+  saveOverrides();
+  log.info('[overrides] cleared all thread overrides');
 }
 
 export function removeOverride(threadId: string): void {

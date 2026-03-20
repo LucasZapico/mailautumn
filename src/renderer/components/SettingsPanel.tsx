@@ -5,13 +5,13 @@ import {
   IoCloseOutline, IoDesktopOutline, IoColorPaletteOutline,
   IoNotificationsOutline, IoFlashOutline, IoPersonOutline,
   IoAddOutline, IoLogoGoogle, IoTrashOutline, IoCheckmarkCircleOutline,
-  IoFolderOpenOutline, IoCopyOutline, IoCheckmarkOutline,
+  IoFolderOpenOutline, IoCopyOutline, IoCheckmarkOutline, IoConstructOutline,
 } from 'react-icons/io5';
 import {
   viewModeAtom, densityAtom, activeCategoryAtom, setActiveCategoryAtom,
   showLabelsAtom, showViewsAtom, showAvatarsAtom, avatarStyleAtom, newsletterViewAtom,
   accountsAtom, checkAccountsAtom, addingAccountAtom,
-  undoSendDelayAtom, setUndoSendDelayAtom, showFormattingToolbarAtom, showCrmPanelAtom,
+  undoSendDelayAtom, setUndoSendDelayAtom, showFormattingToolbarAtom, crmPanelExpandedAtom,
   animationSpeedAtom, afterActionAtom,
 } from '../atoms/app';
 import type { AvatarStyle, AnimationSpeed, AfterAction } from '../atoms/app';
@@ -23,7 +23,7 @@ import type { ThemeMode, AccentColor, AccentSaturation } from '../lib/theme';
 import type { CategoryTab } from '../data/types';
 import type { Density, NewsletterViewMode } from '../atoms/app';
 
-type SettingsTab = 'general' | 'appearance' | 'notifications' | 'ai' | 'accounts';
+type SettingsTab = 'general' | 'appearance' | 'notifications' | 'ai' | 'accounts' | 'troubleshooting';
 
 const tabs: { id: SettingsTab; label: string; icon: React.ElementType }[] = [
   { id: 'general', label: 'General', icon: IoDesktopOutline },
@@ -31,6 +31,7 @@ const tabs: { id: SettingsTab; label: string; icon: React.ElementType }[] = [
   { id: 'notifications', label: 'Notifications', icon: IoNotificationsOutline },
   { id: 'ai', label: 'AI', icon: IoFlashOutline },
   { id: 'accounts', label: 'Accounts', icon: IoPersonOutline },
+  { id: 'troubleshooting', label: 'Troubleshooting', icon: IoConstructOutline },
 ];
 
 function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label: string }) {
@@ -89,6 +90,82 @@ function AvatarPreview({ style }: { style: AvatarStyle }) {
   );
 }
 
+function SenderRulesManager() {
+  const [rules, setRules] = useState<{ key: string; type: string; count: number }[]>([]);
+  const [overrideCount, setOverrideCount] = useState(0);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    loadRules();
+  }, []);
+
+  const loadRules = async () => {
+    if (!window.api?.getSenderRules) return;
+    const data = await window.api.getSenderRules();
+    setRules(data.rules || []);
+    setOverrideCount(data.overrideCount || 0);
+    setLoaded(true);
+  };
+
+  const removeRule = async (key: string) => {
+    if (!window.api?.removeSenderRule) return;
+    await window.api.removeSenderRule(key);
+    loadRules();
+  };
+
+  const clearAllOverrides = async () => {
+    if (!confirm('Clear all thread overrides? Threads will be reclassified by the heuristic on next load.')) return;
+    if (!window.api?.clearThreadOverrides) return;
+    await window.api.clearThreadOverrides();
+    loadRules();
+  };
+
+  if (!loaded) return null;
+
+  return (
+    <section>
+      <h3 className="text-xs font-medium text-text-tertiary uppercase tracking-wider mb-3">Learned Classification Rules</h3>
+      <p className="text-xs text-text-tertiary mb-3">
+        These rules are learned when you move emails between categories. Domain rules (starting with @) apply to all senders on that domain.
+      </p>
+
+      {rules.length === 0 ? (
+        <p className="text-xs text-text-tertiary italic">No sender or domain rules learned yet.</p>
+      ) : (
+        <div className="space-y-1 mb-3">
+          {rules.map(r => (
+            <div key={r.key} className="flex items-center justify-between px-2.5 py-1.5 rounded-md border border-border-primary bg-bg-primary">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className={`text-xs font-mono truncate ${r.key.startsWith('@') ? 'text-accent' : 'text-text-primary'}`}>
+                  {r.key}
+                </span>
+                <span className="text-2xs text-text-tertiary shrink-0">→ {r.type}</span>
+                {r.count > 1 && <span className="text-2xs text-text-tertiary shrink-0">({r.count}x)</span>}
+              </div>
+              <button
+                onClick={() => removeRule(r.key)}
+                className="p-1 rounded text-text-tertiary hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer shrink-0"
+                title="Remove rule"
+              >
+                <IoTrashOutline size={12} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="flex items-center gap-3 text-xs text-text-tertiary">
+        <span>{overrideCount} thread override{overrideCount !== 1 ? 's' : ''}</span>
+        {overrideCount > 0 && (
+          <button onClick={clearAllOverrides} className="text-red-400 hover:underline cursor-pointer">
+            Clear all overrides
+          </button>
+        )}
+      </div>
+    </section>
+  );
+}
+
 function TroubleshootingSection() {
   const [copied, setCopied] = useState(false);
   const [copying, setCopying] = useState(false);
@@ -110,29 +187,33 @@ function TroubleshootingSection() {
   };
 
   return (
-    <section>
-      <h3 className="text-xs font-medium text-text-tertiary uppercase tracking-wider mb-3">Troubleshooting</h3>
-      <p className="text-xs text-text-tertiary mb-3">
-        Include logs when reporting bugs to help us diagnose the issue faster.
-      </p>
-      <div className="flex gap-2">
-        <button
-          onClick={handleOpenFolder}
-          className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-border-primary text-sm text-text-primary hover:bg-bg-hover transition-colors cursor-pointer"
-        >
-          <IoFolderOpenOutline size={14} />
-          Open Log Folder
-        </button>
-        <button
-          onClick={handleCopyLogs}
-          disabled={copying}
-          className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-border-primary text-sm text-text-primary hover:bg-bg-hover transition-colors cursor-pointer disabled:opacity-50"
-        >
-          {copied ? <IoCheckmarkOutline size={14} className="text-green-500" /> : <IoCopyOutline size={14} />}
-          {copied ? 'Copied!' : 'Copy Recent Logs'}
-        </button>
-      </div>
-    </section>
+    <div className="space-y-6">
+      <SenderRulesManager />
+
+      <section>
+        <h3 className="text-xs font-medium text-text-tertiary uppercase tracking-wider mb-3">Logs</h3>
+        <p className="text-xs text-text-tertiary mb-3">
+          Include logs when reporting bugs to help us diagnose the issue faster.
+        </p>
+        <div className="flex gap-2">
+          <button
+            onClick={handleOpenFolder}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-border-primary text-sm text-text-primary hover:bg-bg-hover transition-colors cursor-pointer"
+          >
+            <IoFolderOpenOutline size={14} />
+            Open Log Folder
+          </button>
+          <button
+            onClick={handleCopyLogs}
+            disabled={copying}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-border-primary text-sm text-text-primary hover:bg-bg-hover transition-colors cursor-pointer disabled:opacity-50"
+          >
+            {copied ? <IoCheckmarkOutline size={14} className="text-green-500" /> : <IoCopyOutline size={14} />}
+            {copied ? 'Copied!' : 'Copy Recent Logs'}
+          </button>
+        </div>
+      </section>
+    </div>
   );
 }
 
@@ -149,7 +230,7 @@ function GeneralSettings() {
   const undoSendDelay = useAtomValue(undoSendDelayAtom);
   const setUndoSendDelay = useSetAtom(setUndoSendDelayAtom);
   const [showFormattingToolbar, setShowFormattingToolbar] = useAtom(showFormattingToolbarAtom);
-  const [showCrmPanel, setShowCrmPanel] = useAtom(showCrmPanelAtom);
+  const [crmExpanded, setCrmExpanded] = useAtom(crmPanelExpandedAtom);
   const [animationSpeed, setAnimationSpeed] = useAtom(animationSpeedAtom);
   const [afterAction, setAfterAction] = useAtom(afterActionAtom);
 
@@ -221,8 +302,8 @@ function GeneralSettings() {
           <Toggle label="Show labels" checked={showLabels} onChange={setShowLabels} />
           <Toggle label="Show views (Sent, Spam, Trash)" checked={showViews} onChange={setShowViews} />
           <Toggle label="Show sender avatars" checked={showAvatars} onChange={setShowAvatars} />
-          <Toggle label="Show contact panel" checked={showCrmPanel} onChange={setShowCrmPanel} />
-          <p className="text-xxs text-text-tertiary pl-0.5">Show contact details, notes, and interaction history alongside messages.</p>
+          <Toggle label="Expand contact panel" checked={crmExpanded} onChange={setCrmExpanded} />
+          <p className="text-xxs text-text-tertiary pl-0.5">Always expand the contact panel in conversations. When off, shows a collapsed strip.</p>
         </div>
       </section>
 
@@ -252,7 +333,6 @@ function GeneralSettings() {
         </section>
       )}
 
-      <TroubleshootingSection />
     </div>
   );
 }
@@ -686,6 +766,7 @@ const settingsContent: Record<SettingsTab, () => React.JSX.Element> = {
   notifications: () => <div className="text-sm text-text-tertiary">Notification settings coming soon</div>,
   ai: AISettings,
   accounts: AccountsSettings,
+  troubleshooting: TroubleshootingSection,
 };
 
 export default function SettingsPanel({ onClose }: { onClose: () => void }) {

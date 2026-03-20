@@ -33,18 +33,19 @@ export function isOptimisticWindow() { return Date.now() < optimisticUntil; }
 export const accountsAtom = atom<Account[]>([]);
 export const threadsAtom = atom<Thread[]>([]);
 
-// ── Pinned threads (client-side, persisted to localStorage) ──
+// ── Pinned threads (persisted via IPC to config dir) ──
 
-function loadPinnedIds(): Set<string> {
-  try {
-    const raw = localStorage.getItem('pinned-thread-ids');
-    return raw ? new Set(JSON.parse(raw)) : new Set();
-  } catch { return new Set(); }
-}
 function savePinnedIds(ids: Set<string>): void {
-  localStorage.setItem('pinned-thread-ids', JSON.stringify([...ids]));
+  window.api?.setPinnedIds?.([...ids]);
 }
-export const pinnedThreadIdsAtom = atom<Set<string>>(loadPinnedIds());
+export const pinnedThreadIdsAtom = atom<Set<string>>(new Set());
+
+/** Load pinned IDs from main process on startup */
+export const loadPinnedIdsAtom = atom(null, async (_get, set) => {
+  if (!window.api?.getPinnedIds) return;
+  const ids = await window.api.getPinnedIds();
+  set(pinnedThreadIdsAtom, new Set(ids || []));
+});
 export const hasAccountsAtom = atom<boolean | null>(null); // null = loading
 export const dbReadyAtom = atom<boolean>(false);
 export const addingAccountAtom = atom<boolean>(false); // show add-account flow in main app
@@ -111,7 +112,7 @@ export const showViewsAtom = persistedAtom<boolean>('pref:showViews', true);
 export const showAvatarsAtom = persistedAtom<boolean>('pref:showAvatars', true);
 export const avatarStyleAtom = persistedAtom<AvatarStyle>('pref:avatarStyle', 'mono');
 export const showFormattingToolbarAtom = persistedAtom<boolean>('pref:showFormattingToolbar', true);
-export const showCrmPanelAtom = persistedAtom<boolean>('pref:showCrmPanel', false);
+export const crmPanelExpandedAtom = persistedAtom<boolean>('pref:crmPanelExpanded', true);
 
 export type AfterAction = 'inbox' | 'next';
 export const afterActionAtom = persistedAtom<AfterAction>('pref:afterAction', 'next');
@@ -273,7 +274,6 @@ const typeLabels: Record<string, string> = {
   notification: 'Updates',
   transactional: 'Receipts',
   marketing: 'Promos',
-  calendar: 'Calendar',
 };
 
 export const setThreadTypeAtom = atom(null, async (get, set, { threadId, type }: { threadId: string; type: string }) => {
@@ -286,8 +286,11 @@ export const setThreadTypeAtom = atom(null, async (get, set, { threadId, type }:
   set(threadsAtom, threads.map(t =>
     t.id === threadId ? { ...t, type: type as Thread['type'] } : t
   ));
-  // Persist to main process — include sender email so it can learn a sender rule
-  const senderEmail = thread?.participants?.[0]?.email;
+  // Persist to main process — find external sender for sender rule learning
+  const accountEmails = get(accountEmailsAtom);
+  const senderEmail = thread?.participants?.find(
+    p => !accountEmails.has(p.email.toLowerCase())
+  )?.email || thread?.participants?.[0]?.email;
   try {
     await window.api.setThreadType(threadId, type, senderEmail);
   } catch {
@@ -305,6 +308,36 @@ export const setThreadTypeAtom = atom(null, async (get, set, { threadId, type }:
       window.api?.setThreadType(threadId, prevType, senderEmail);
     },
   } : undefined);
+});
+
+/** Reclassify all threads from a domain in one shot */
+export const setDomainTypeAtom = atom(null, async (get, set, { domain, type }: { domain: string; type: string }) => {
+  const threads = get(threadsAtom);
+  const matching = threads.filter(t => {
+    const sender = t.participants[0]?.email || '';
+    return sender.toLowerCase().endsWith('@' + domain.toLowerCase());
+  });
+  if (matching.length === 0) return;
+
+  // Optimistic update all matching threads
+  for (const t of matching) {
+    localTypeOverrides.set(t.id, type);
+  }
+  set(threadsAtom, threads.map(t => {
+    if (matching.some(m => m.id === t.id)) {
+      return { ...t, type: type as Thread['type'] };
+    }
+    return t;
+  }));
+
+  // Persist domain rule + individual overrides
+  window.api?.setDomainType?.(domain, type);
+  for (const t of matching) {
+    window.api?.setThreadType(t.id, type);
+  }
+
+  const { pushToast } = await import('../components/Toast');
+  pushToast(`Moved ${matching.length} from @${domain} to ${typeLabels[type] || type}`);
 });
 
 export const toggleStarAtom = atom(null, (get, set, threadId: string) => {
@@ -426,19 +459,24 @@ async function ensureCategories(get: any, set: any): Promise<CategoryInfo[]> {
   return cats;
 }
 
-/** After removing a thread, navigate to next thread or back to list based on setting */
+/** After removing a thread, navigate to next thread or back to list based on setting.
+ *  Only navigates to next if the thread was currently selected (open in message view).
+ *  If acting from the list view (thread not selected), just clear selection. */
 function navigateAfterAction(get: any, set: any, threadId: string) {
+  const currentlySelected = get(selectedThreadIdAtom);
+  // Not viewing this thread — don't navigate anywhere
+  if (currentlySelected !== threadId) return;
+
   const pref = get(afterActionAtom) as AfterAction;
   if (pref === 'next') {
     const threads = get(filteredThreadsAtom) as Thread[];
     const idx = threads.findIndex(t => t.id === threadId);
     if (idx < 0) { set(selectedThreadIdAtom, null); return; }
-    // Look forward for the next non-pinned thread (skip pinned — they stick to the top)
+    // Look forward for the next non-pinned thread
     let next: Thread | undefined;
     for (let i = idx + 1; i < threads.length; i++) {
       if (!threads[i].pinned) { next = threads[i]; break; }
     }
-    // If nothing forward, look backward
     if (!next) {
       for (let i = idx - 1; i >= 0; i--) {
         if (!threads[i].pinned) { next = threads[i]; break; }

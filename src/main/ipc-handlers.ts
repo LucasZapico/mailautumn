@@ -8,7 +8,7 @@ import * as accounts from './accounts';
 import * as mailsync from './mailsync';
 import { beginOAuth, awaitOAuth, cancelOAuth } from './oauth';
 import { getAISettings, saveAISettings, loadAISettings, testAIConnection } from './ai-classify';
-import { setOverride, removeOverride } from './manual-overrides';
+import { setOverride, removeOverride, setDomainRule, getAllSenderRules, removeSenderRule, clearAllOverrides } from './manual-overrides';
 import { analyzeThread, getCachedAnalysis } from './ai-thread';
 import { generateDraft } from './ai-compose';
 import type { AISettings } from './ai-classify';
@@ -185,6 +185,28 @@ export function registerIpcHandlers(): void {
     return database.searchAll(query, limit);
   });
 
+  // ── Pinned threads ──
+
+  const pinsPath = () => path.join(database.getConfigDir(), 'pinned-threads.json');
+
+  ipcMain.handle('pins:get', () => {
+    try {
+      const raw = fs.readFileSync(pinsPath(), 'utf-8');
+      return JSON.parse(raw) as string[];
+    } catch {
+      return [];
+    }
+  });
+
+  ipcMain.handle('pins:set', (_event, ids: string[]) => {
+    try {
+      fs.writeFileSync(pinsPath(), JSON.stringify(ids), 'utf-8');
+    } catch (err) {
+      log.error('[pins] failed to save:', err);
+    }
+    return { success: true };
+  });
+
   // ── Signatures ──
 
   ipcMain.handle('signatures:get', (_event, email: string) => {
@@ -242,6 +264,25 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle('thread:set-type', (_event, threadId: string, type: string, senderEmail?: string) => {
     setOverride(threadId, type as import('./classify-email').EmailType, senderEmail);
+    return { success: true };
+  });
+
+  ipcMain.handle('thread:set-domain-type', (_event, domain: string, type: string) => {
+    setDomainRule(domain, type as import('./classify-email').EmailType);
+    return { success: true };
+  });
+
+  ipcMain.handle('thread:get-sender-rules', () => {
+    return getAllSenderRules();
+  });
+
+  ipcMain.handle('thread:remove-sender-rule', (_event, key: string) => {
+    removeSenderRule(key);
+    return { success: true };
+  });
+
+  ipcMain.handle('thread:clear-overrides', () => {
+    clearAllOverrides();
     return { success: true };
   });
 

@@ -55,12 +55,11 @@ const ThreadItem = memo(function ThreadItem({ thread, myEmails }: { thread: Thre
   const isCompact = density === 'compact';
 
   const typeLabels: { type: string; label: string }[] = [
-    { type: 'conversation', label: 'Conversation' },
-    { type: 'newsletter', label: 'Newsletter' },
-    { type: 'notification', label: 'Notification' },
-    { type: 'transactional', label: 'Receipt' },
-    { type: 'marketing', label: 'Marketing' },
-    { type: 'calendar', label: 'Calendar' },
+    { type: 'conversation', label: 'Conversations' },
+    { type: 'newsletter', label: 'Newsletters' },
+    { type: 'notification', label: 'Updates' },
+    { type: 'transactional', label: 'Receipts' },
+    { type: 'marketing', label: 'Promos' },
   ];
 
   const handleContextMenu = (e: React.MouseEvent) => {

@@ -84,6 +84,14 @@ const api = {
   // Manual type overrides
   setThreadType: (threadId: string, type: string, senderEmail?: string) =>
     ipcRenderer.invoke('thread:set-type', threadId, type, senderEmail),
+  setDomainType: (domain: string, type: string) =>
+    ipcRenderer.invoke('thread:set-domain-type', domain, type),
+  getSenderRules: () =>
+    ipcRenderer.invoke('thread:get-sender-rules'),
+  removeSenderRule: (key: string) =>
+    ipcRenderer.invoke('thread:remove-sender-rule', key),
+  clearThreadOverrides: () =>
+    ipcRenderer.invoke('thread:clear-overrides'),
   resetThreadType: (threadId: string) =>
     ipcRenderer.invoke('thread:reset-type', threadId),
 
@@ -110,6 +118,12 @@ const api = {
     return () => ipcRenderer.removeListener('accounts-updated', handler);
   },
 
+  // Pinned threads
+  getPinnedIds: () =>
+    ipcRenderer.invoke('pins:get'),
+  setPinnedIds: (ids: string[]) =>
+    ipcRenderer.invoke('pins:set', ids),
+
   // Signatures
   getSignature: (email: string) =>
     ipcRenderer.invoke('signatures:get', email),
@@ -129,10 +143,14 @@ const api = {
     ipcRenderer.invoke('crm:search-contacts', query, limit),
   crmAllContacts: (limit?: number) =>
     ipcRenderer.invoke('crm:all-contacts', limit),
-  crmContactsByBucket: (bucket: string, limit?: number) =>
-    ipcRenderer.invoke('crm:contacts-by-bucket', bucket, limit),
-  crmBuckets: () =>
-    ipcRenderer.invoke('crm:buckets'),
+  crmContactsByTag: (tag: string, limit?: number) =>
+    ipcRenderer.invoke('crm:contacts-by-tag', tag, limit),
+  crmTags: () =>
+    ipcRenderer.invoke('crm:tags'),
+  crmRenameTag: (oldName: string, newName: string) =>
+    ipcRenderer.invoke('crm:rename-tag', oldName, newName),
+  crmDeleteTag: (name: string) =>
+    ipcRenderer.invoke('crm:delete-tag', name),
   crmAddInteraction: (contactEmail: string, threadId: string, subject: string, direction: 'sent' | 'received', date: string) =>
     ipcRenderer.invoke('crm:add-interaction', contactEmail, threadId, subject, direction, date),
   crmGetInteractions: (contactEmail: string, limit?: number) =>
