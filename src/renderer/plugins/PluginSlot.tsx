@@ -2,10 +2,11 @@ import { getSlotEntries, type SlotName } from './registry';
 
 interface PluginSlotProps {
   name: SlotName;
+  expanded?: boolean;
   props?: Record<string, any>;
 }
 
-export default function PluginSlot({ name, props = {} }: PluginSlotProps) {
+export default function PluginSlot({ name, expanded, props = {} }: PluginSlotProps) {
   const entries = getSlotEntries(name);
   if (entries.length === 0) return null;
 
@@ -13,7 +14,7 @@ export default function PluginSlot({ name, props = {} }: PluginSlotProps) {
     <>
       {entries.map((entry) => {
         const Component = entry.component;
-        return <Component key={entry.pluginId} {...props} />;
+        return <Component key={entry.pluginId} {...props} expanded={expanded} />;
       })}
     </>
   );

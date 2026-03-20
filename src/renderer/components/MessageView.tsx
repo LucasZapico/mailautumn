@@ -13,7 +13,7 @@ import {
   selectedThreadIdAtom, selectedThreadAtom, selectThreadAtom,
   filteredThreadsAtom, viewModeAtom, goBackToListAtom, densityConfigAtom,
   toggleStarAtom, archiveThreadAtom, trashThreadAtom, markUnreadAtom, togglePinAtom,
-  setThreadTypeAtom, showCrmPanelAtom,
+  setThreadTypeAtom, setDomainTypeAtom, crmPanelExpandedAtom,
 } from '../atoms/app';
 import type { Message, Thread } from '../data/types';
 import { themeModeAtom } from '../atoms/theme';
@@ -299,7 +299,6 @@ function TypeChipDropdown({ thread }: { thread: Thread }) {
     { type: 'notification', label: 'Update',        classes: 'bg-purple/15 text-purple' },
     { type: 'transactional',label: 'Receipt',       classes: 'bg-green/15 text-green' },
     { type: 'marketing',    label: 'Promo',         classes: 'bg-orange/15 text-orange' },
-    { type: 'calendar',     label: 'Calendar',      classes: 'bg-yellow/15 text-yellow' },
   ];
 
   useEffect(() => {
@@ -354,7 +353,6 @@ const moveToTypes: { type: string; label: string }[] = [
   { type: 'notification', label: 'Update' },
   { type: 'transactional', label: 'Receipt' },
   { type: 'marketing', label: 'Promo' },
-  { type: 'calendar', label: 'Calendar' },
 ];
 
 function ThreadHeader({ thread, position, total, onPrev, onNext }: {
@@ -369,7 +367,10 @@ function ThreadHeader({ thread, position, total, onPrev, onNext }: {
   const trashThread = useSetAtom(trashThreadAtom);
   const markUnread = useSetAtom(markUnreadAtom);
   const setThreadType = useSetAtom(setThreadTypeAtom);
+  const setDomainType = useSetAtom(setDomainTypeAtom);
   const { show } = useContextMenu();
+
+  const senderDomain = (thread.participants[0]?.email || '').split('@')[1] || '';
 
   const handleMore = (e: React.MouseEvent) => {
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
@@ -392,6 +393,16 @@ function ThreadHeader({ thread, position, total, onPrev, onNext }: {
           icon: <IoSwapHorizontalOutline size={14} />,
           onClick: () => setThreadType({ threadId: thread.id, type: t.type }),
         })),
+      ...(senderDomain ? [
+        { separator: true },
+        ...moveToTypes
+          .filter(t => t.type !== thread.type)
+          .map(t => ({
+            label: `Move all @${senderDomain} to ${t.label}`,
+            icon: <IoSwapHorizontalOutline size={14} />,
+            onClick: () => setDomainType({ domain: senderDomain, type: t.type }),
+          })),
+      ] : []),
       { separator: true },
       {
         label: 'Archive',
@@ -628,7 +639,7 @@ export default function MessageView() {
   const thread = useAtomValue(selectedThreadAtom);
   const selectThread = useSetAtom(selectThreadAtom);
   const threadList = useAtomValue(filteredThreadsAtom);
-  const showCrmPanel = useAtomValue(showCrmPanelAtom);
+  const crmPanelExpanded = useAtomValue(crmPanelExpandedAtom);
 
   const currentIndex = thread ? threadList.findIndex(t => t.id === thread.id) : -1;
   const total = threadList.length;
@@ -696,7 +707,7 @@ export default function MessageView() {
           if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
         }} />
       </div>
-      {showCrmPanel && <PluginSlot name="message-sidebar" />}
+      {isConversation && <PluginSlot name="message-sidebar" expanded={crmPanelExpanded} />}
     </div>
   );
 }

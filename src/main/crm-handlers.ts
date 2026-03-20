@@ -27,12 +27,22 @@ export function registerCrmHandlers(): void {
     return crm.getAllContacts(limit);
   });
 
-  ipcMain.handle('crm:contacts-by-bucket', (_event, bucket: string, limit?: number) => {
-    return crm.getContactsByBucket(bucket, limit);
+  ipcMain.handle('crm:contacts-by-tag', (_event, tag: string, limit?: number) => {
+    return crm.getContactsByTag(tag, limit);
   });
 
-  ipcMain.handle('crm:buckets', () => {
-    return crm.getBuckets();
+  ipcMain.handle('crm:tags', () => {
+    return crm.getTags();
+  });
+
+  ipcMain.handle('crm:rename-tag', (_event, oldName: string, newName: string) => {
+    const changed = crm.renameTag(oldName, newName);
+    return { success: true, changed };
+  });
+
+  ipcMain.handle('crm:delete-tag', (_event, name: string) => {
+    const changed = crm.deleteTag(name);
+    return { success: true, changed };
   });
 
   ipcMain.handle('crm:add-interaction', (_event, contactEmail: string, threadId: string, subject: string, direction: 'sent' | 'received', date: string) => {

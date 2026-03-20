@@ -1,7 +1,7 @@
 /**
  * CRM Contact Panel — shows in the message sidebar slot.
  * If the contact is in the CRM: shows editable fields, signature-extracted info, interaction history.
- * If not: shows an "Add to CRM" prompt with bucket picker.
+ * If not: shows an "Add to CRM" prompt with tag picker.
  */
 
 import { useState, useEffect, useRef, useMemo } from 'react';
@@ -14,14 +14,15 @@ import {
   IoGlobeOutline, IoLogoLinkedin, IoPersonAddOutline,
   IoTrashOutline, IoFolderOutline,
 } from 'react-icons/io5';
-import { selectedThreadAtom, accountEmailsAtom, accountsAtom, selectThreadAtom } from '../../atoms/app';
+import { selectedThreadAtom, accountEmailsAtom, selectThreadAtom } from '../../atoms/app';
 import {
-  activeCrmContactAtom, crmInteractionsAtom, crmBucketsAtom,
+  activeCrmContactAtom, crmInteractionsAtom, crmTagsAtom,
   loadCrmContactAtom, saveCrmContactAtom, trackInteractionAtom,
-  addToCrmAtom, removeFromCrmAtom, loadBucketsAtom,
+  addToCrmAtom, removeFromCrmAtom, loadTagsAtom, renameTagAtom, deleteTagAtom,
   type CrmContact,
 } from './atoms';
 import { parseSignature, type SignatureInfo } from './signature-parser';
+import { useContextMenu } from '../../components/ContextMenu';
 
 // ── Shared sub-components ──
 
@@ -142,25 +143,24 @@ function TagEditor({ tags, onSave }: { tags: string[]; onSave: (tags: string[]) 
 
 // ── Add to CRM prompt ──
 
-function AddToCrmPrompt({ email, name, sigInfo, buckets, onAdd }: {
+function AddToCrmPrompt({ email, name, sigInfo, tags, onAdd }: {
   email: string;
   name: string;
   sigInfo: SignatureInfo | null;
-  buckets: { bucket: string; count: number }[];
-  onAdd: (bucket: string) => void;
+  tags: { tag: string; count: number }[];
+  onAdd: (tag: string) => void;
 }) {
-  const accounts = useAtomValue(accountsAtom);
-  const [selectedBucket, setSelectedBucket] = useState('');
-  const [customBucket, setCustomBucket] = useState('');
+  const [selectedTag, setSelectedTag] = useState('');
+  const [customTag, setCustomTag] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Default bucket options from account names
-  const accountBuckets = accounts.map(a => a.name || a.email.split('@')[0]);
-  const allBuckets = [...new Set([...accountBuckets, ...buckets.map(b => b.bucket)])];
+  const defaultTags = ['client', 'colleague', 'friend', 'vendor', 'lead'];
+  const existingTags = tags.map(t => t.tag);
+  const allTags = [...new Set([...defaultTags, ...existingTags])];
 
   const handleAdd = () => {
-    const bucket = selectedBucket === '__custom' ? customBucket.trim() : selectedBucket;
-    if (bucket) onAdd(bucket);
+    const tag = selectedTag === '__custom' ? customTag.trim() : selectedTag;
+    if (tag) onAdd(tag);
   };
 
   return (
@@ -182,14 +182,14 @@ function AddToCrmPrompt({ email, name, sigInfo, buckets, onAdd }: {
         <div className="text-xs text-text-secondary">Add this contact to your CRM?</div>
 
         <div>
-          <div className="text-2xs text-text-tertiary mb-1.5">Bucket</div>
+          <div className="text-2xs text-text-tertiary mb-1.5">Tag</div>
           <div className="space-y-1">
-            {allBuckets.map(b => (
+            {allTags.map(b => (
               <button
                 key={b}
-                onClick={() => setSelectedBucket(b)}
+                onClick={() => setSelectedTag(b)}
                 className={`flex items-center gap-2 w-full px-2.5 py-1.5 rounded-md text-xs transition-colors cursor-pointer ${
-                  selectedBucket === b
+                  selectedTag === b
                     ? 'bg-accent/10 text-accent border border-accent/30'
                     : 'text-text-secondary hover:bg-bg-hover border border-transparent'
                 }`}
@@ -199,24 +199,24 @@ function AddToCrmPrompt({ email, name, sigInfo, buckets, onAdd }: {
               </button>
             ))}
             <button
-              onClick={() => { setSelectedBucket('__custom'); setTimeout(() => inputRef.current?.focus(), 50); }}
+              onClick={() => { setSelectedTag('__custom'); setTimeout(() => inputRef.current?.focus(), 50); }}
               className={`flex items-center gap-2 w-full px-2.5 py-1.5 rounded-md text-xs transition-colors cursor-pointer ${
-                selectedBucket === '__custom'
+                selectedTag === '__custom'
                   ? 'bg-accent/10 text-accent border border-accent/30'
                   : 'text-text-secondary hover:bg-bg-hover border border-transparent'
               }`}
             >
               <IoAddOutline size={13} />
-              New bucket...
+              New tag...
             </button>
-            {selectedBucket === '__custom' && (
+            {selectedTag === '__custom' && (
               <input
                 ref={inputRef}
                 type="text"
-                value={customBucket}
-                onChange={e => setCustomBucket(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter' && customBucket.trim()) handleAdd(); }}
-                placeholder="Bucket name"
+                value={customTag}
+                onChange={e => setCustomTag(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && customTag.trim()) handleAdd(); }}
+                placeholder="Tag name"
                 className="w-full text-xs bg-bg-tertiary border border-border-primary rounded-md px-2.5 py-1.5 outline-none mt-1"
               />
             )}
@@ -225,7 +225,7 @@ function AddToCrmPrompt({ email, name, sigInfo, buckets, onAdd }: {
 
         <button
           onClick={handleAdd}
-          disabled={!selectedBucket || (selectedBucket === '__custom' && !customBucket.trim())}
+          disabled={!selectedTag || (selectedTag === '__custom' && !customTag.trim())}
           className="flex items-center justify-center gap-1.5 w-full px-3 py-2 rounded-lg bg-accent text-white text-xs font-medium disabled:opacity-40 hover:bg-accent/90 transition-colors cursor-pointer disabled:cursor-default"
         >
           <IoPersonAddOutline size={14} />
@@ -238,19 +238,22 @@ function AddToCrmPrompt({ email, name, sigInfo, buckets, onAdd }: {
 
 // ── Main panel ──
 
-export default function ContactPanel() {
+export default function ContactPanel({ expanded = true }: { expanded?: boolean }) {
   const thread = useAtomValue(selectedThreadAtom);
   const accountEmails = useAtomValue(accountEmailsAtom);
   const contact = useAtomValue(activeCrmContactAtom);
   const interactions = useAtomValue(crmInteractionsAtom);
-  const buckets = useAtomValue(crmBucketsAtom);
+  const tags = useAtomValue(crmTagsAtom);
   const loadContact = useSetAtom(loadCrmContactAtom);
   const saveContact = useSetAtom(saveCrmContactAtom);
   const trackInteraction = useSetAtom(trackInteractionAtom);
   const addToCrm = useSetAtom(addToCrmAtom);
   const removeFromCrm = useSetAtom(removeFromCrmAtom);
-  const loadBuckets = useSetAtom(loadBucketsAtom);
+  const loadTags = useSetAtom(loadTagsAtom);
+  const renameTag = useSetAtom(renameTagAtom);
+  const deleteTag = useSetAtom(deleteTagAtom);
   const selectThread = useSetAtom(selectThreadAtom);
+  const { show } = useContextMenu();
   const [historyOpen, setHistoryOpen] = useState(false);
 
   // Find the primary external participant
@@ -271,11 +274,11 @@ export default function ContactPanel() {
     return null;
   }, [thread?.messages, primaryEmail]);
 
-  // Load contact + buckets when thread changes
+  // Load contact + tags when thread changes
   useEffect(() => {
     if (primaryEmail) loadContact(primaryEmail);
-    loadBuckets();
-  }, [primaryEmail, loadContact, loadBuckets]);
+    loadTags();
+  }, [primaryEmail, loadContact, loadTags]);
 
   // Track interaction for existing CRM contacts
   useEffect(() => {
@@ -304,9 +307,31 @@ export default function ContactPanel() {
     }
   }, [sigInfo, contact?.email]);
 
+  const [renamingTag, setRenamingTag] = useState(false);
+  const [renameValue, setRenameValue] = useState('');
+  const renameInputRef = useRef<HTMLInputElement>(null);
+
   if (!thread || !primaryEmail) return null;
 
   const participantName = thread.participants.find(p => p.email === primaryEmail)?.name || '';
+  const displayNameShort = contact?.name || sigInfo?.name || participantName || primaryEmail.split('@')[0];
+
+  // Collapsed — thin strip with initial and contact name
+  if (!expanded) {
+    return (
+      <div className="w-10 border-l border-border-secondary bg-bg-primary flex flex-col items-center py-3 gap-2 shrink-0">
+        <div className="w-7 h-7 rounded-full bg-accent/15 flex items-center justify-center" title={`${displayNameShort} (${primaryEmail})`}>
+          <span className="text-xs font-medium text-accent">{displayNameShort.charAt(0).toUpperCase()}</span>
+        </div>
+        <span className="text-2xs text-text-tertiary [writing-mode:vertical-rl] rotate-180 truncate max-h-32">
+          {displayNameShort}
+        </span>
+        {contact && (
+          <div className="w-1.5 h-1.5 rounded-full bg-accent/50 mt-auto mb-1" title="In CRM" />
+        )}
+      </div>
+    );
+  }
 
   // Not in CRM — show add prompt
   if (!contact) {
@@ -315,14 +340,14 @@ export default function ContactPanel() {
         email={primaryEmail}
         name={sigInfo?.name || participantName}
         sigInfo={sigInfo}
-        buckets={buckets}
-        onAdd={(bucket) => {
+        tags={tags}
+        onAdd={(tag) => {
           addToCrm({
             email: primaryEmail,
             name: sigInfo?.name || participantName,
             company: sigInfo?.company,
             phone: sigInfo?.phone,
-            bucket,
+            tag,
           });
         }}
       />
@@ -331,6 +356,20 @@ export default function ContactPanel() {
 
   // In CRM — show full panel
   const displayName = contact.name || sigInfo?.name || participantName;
+
+  const startRename = () => {
+    setRenameValue(contact.tag);
+    setRenamingTag(true);
+    setTimeout(() => renameInputRef.current?.select(), 50);
+  };
+
+  const commitRename = () => {
+    const trimmed = renameValue.trim();
+    if (trimmed && trimmed !== contact.tag) {
+      renameTag({ oldName: contact.tag, newName: trimmed });
+    }
+    setRenamingTag(false);
+  };
 
   const update = (field: string, value: any) => {
     saveContact({ email: primaryEmail, [field]: value });
@@ -356,11 +395,39 @@ export default function ContactPanel() {
         </div>
         <div className="flex items-center justify-between mt-2">
           <div className="flex items-center gap-3 text-2xs text-text-tertiary">
-            {contact.bucket && (
-              <span className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-bg-tertiary">
-                <IoFolderOutline size={10} />
-                {contact.bucket}
-              </span>
+            {contact.tag && !renamingTag && (
+              <button
+                className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-bg-tertiary hover:bg-bg-hover transition-colors cursor-pointer"
+                onClick={(e) => {
+                  show(e.clientX, e.clientY, [
+                    { label: 'Rename tag...', onClick: startRename },
+                    { label: 'Change this contact\'s tag...', onClick: () => {
+                      setRenameValue(contact.tag);
+                      setRenamingTag(true);
+                      setTimeout(() => renameInputRef.current?.select(), 50);
+                    }},
+                    { label: 'Remove tag from all contacts', onClick: () => deleteTag(contact.tag) },
+                  ]);
+                }}
+                title="Click to manage tag"
+              >
+                <IoPricetagOutline size={10} />
+                {contact.tag}
+              </button>
+            )}
+            {renamingTag && (
+              <input
+                ref={renameInputRef}
+                value={renameValue}
+                onChange={e => setRenameValue(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') commitRename();
+                  if (e.key === 'Escape') setRenamingTag(false);
+                }}
+                onBlur={commitRename}
+                className="px-1.5 py-0.5 rounded bg-bg-tertiary border border-accent/50 text-2xs text-text-primary outline-none w-24"
+                autoFocus
+              />
             )}
             {contact.interactionCount !== undefined && contact.interactionCount > 0 && (
               <span className="flex items-center gap-1">

@@ -17,6 +17,7 @@ export function openCrmDb(): void {
     return;
   }
 
+  // Create tables
   db.exec(`
     CREATE TABLE IF NOT EXISTS CrmContact (
       email TEXT PRIMARY KEY,
@@ -25,7 +26,7 @@ export function openCrmDb(): void {
       phone TEXT NOT NULL DEFAULT '',
       notes TEXT NOT NULL DEFAULT '',
       tags TEXT NOT NULL DEFAULT '[]',
-      bucket TEXT NOT NULL DEFAULT '',
+      tag TEXT NOT NULL DEFAULT '',
       starred INTEGER NOT NULL DEFAULT 0,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -43,8 +44,22 @@ export function openCrmDb(): void {
 
     CREATE INDEX IF NOT EXISTS idx_crm_interaction_contact ON CrmInteraction(contact_email);
     CREATE INDEX IF NOT EXISTS idx_crm_interaction_thread ON CrmInteraction(thread_id);
-    CREATE INDEX IF NOT EXISTS idx_crm_contact_bucket ON CrmContact(bucket);
   `);
+
+  // Migrate: rename 'bucket' column to 'tag' (must run BEFORE creating tag index)
+  try {
+    const cols = db.prepare("PRAGMA table_info(CrmContact)").all() as { name: string }[];
+    if (cols.some(c => c.name === 'bucket') && !cols.some(c => c.name === 'tag')) {
+      db.exec(`
+        ALTER TABLE CrmContact RENAME COLUMN bucket TO tag;
+        DROP INDEX IF EXISTS idx_crm_contact_bucket;
+      `);
+      log.info('[crm] migrated bucket → tag');
+    }
+  } catch { /* column already renamed or table just created */ }
+
+  // Create tag index (safe now — column is guaranteed to be 'tag')
+  db.exec("CREATE INDEX IF NOT EXISTS idx_crm_contact_tag ON CrmContact(tag)");
 
   log.info('[crm] tables initialized');
 }
@@ -62,7 +77,7 @@ export interface CrmContact {
   phone: string;
   notes: string;
   tags: string[];
-  bucket: string;
+  tag: string;
   starred: boolean;
   createdAt: string;
   updatedAt: string;
@@ -78,7 +93,7 @@ function rowToContact(row: any): CrmContact {
     phone: row.phone,
     notes: row.notes,
     tags: JSON.parse(row.tags || '[]'),
-    bucket: row.bucket || '',
+    tag: row.tag || '',
     starred: !!row.starred,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -113,7 +128,7 @@ export function upsertContact(contact: Partial<CrmContact> & { email: string }):
     if (contact.phone !== undefined) { updates.push('phone = ?'); params.push(contact.phone); }
     if (contact.notes !== undefined) { updates.push('notes = ?'); params.push(contact.notes); }
     if (contact.tags !== undefined) { updates.push('tags = ?'); params.push(JSON.stringify(contact.tags)); }
-    if (contact.bucket !== undefined) { updates.push('bucket = ?'); params.push(contact.bucket); }
+    if (contact.tag !== undefined) { updates.push('tag = ?'); params.push(contact.tag); }
     if (contact.starred !== undefined) { updates.push('starred = ?'); params.push(contact.starred ? 1 : 0); }
     if (updates.length > 0) {
       updates.push("updated_at = datetime('now')");
@@ -122,7 +137,7 @@ export function upsertContact(contact: Partial<CrmContact> & { email: string }):
     }
   } else {
     db.prepare(`
-      INSERT INTO CrmContact (email, name, company, phone, notes, tags, bucket, starred)
+      INSERT INTO CrmContact (email, name, company, phone, notes, tags, tag, starred)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       email,
@@ -131,7 +146,7 @@ export function upsertContact(contact: Partial<CrmContact> & { email: string }):
       contact.phone || '',
       contact.notes || '',
       JSON.stringify(contact.tags || []),
-      contact.bucket || '',
+      contact.tag || '',
       contact.starred ? 1 : 0,
     );
   }
@@ -174,7 +189,7 @@ export function getAllContacts(limit = 100): CrmContact[] {
   return rows.map(rowToContact);
 }
 
-export function getContactsByBucket(bucket: string, limit = 100): CrmContact[] {
+export function getContactsByTag(tag: string, limit = 100): CrmContact[] {
   const db = getDb();
   if (!db) return [];
   const rows = db.prepare(`
@@ -182,23 +197,39 @@ export function getContactsByBucket(bucket: string, limit = 100): CrmContact[] {
       (SELECT COUNT(*) FROM CrmInteraction i WHERE i.contact_email = c.email) as interaction_count,
       (SELECT MAX(i.date) FROM CrmInteraction i WHERE i.contact_email = c.email) as last_interaction
     FROM CrmContact c
-    WHERE c.bucket = ?
+    WHERE c.tag = ?
     ORDER BY c.starred DESC, c.name ASC
     LIMIT ?
-  `).all(bucket, limit) as any[];
+  `).all(tag, limit) as any[];
   return rows.map(rowToContact);
 }
 
-export function getBuckets(): { bucket: string; count: number }[] {
+export function getTags(): { tag: string; count: number }[] {
   const db = getDb();
   if (!db) return [];
   return db.prepare(`
-    SELECT bucket, COUNT(*) as count
+    SELECT tag, COUNT(*) as count
     FROM CrmContact
-    WHERE bucket != ''
-    GROUP BY bucket
-    ORDER BY bucket ASC
-  `).all() as { bucket: string; count: number }[];
+    WHERE tag != ''
+    GROUP BY tag
+    ORDER BY tag ASC
+  `).all() as { tag: string; count: number }[];
+}
+
+// ── Tag management ──
+
+export function renameTag(oldName: string, newName: string): number {
+  const db = getDb();
+  if (!db || !oldName || !newName || oldName === newName) return 0;
+  const result = db.prepare("UPDATE CrmContact SET tag = ?, updated_at = datetime('now') WHERE tag = ?").run(newName.trim(), oldName.trim());
+  return result.changes;
+}
+
+export function deleteTag(name: string): number {
+  const db = getDb();
+  if (!db || !name) return 0;
+  const result = db.prepare("UPDATE CrmContact SET tag = '', updated_at = datetime('now') WHERE tag = ?").run(name.trim());
+  return result.changes;
 }
 
 // ── Interactions ──

@@ -95,10 +95,12 @@
       "depends": [
         "libsecret-1-0",
         "libsasl2-2"
-      ]
+      ],
+      "packageName": "mailautumn",
+      "artifactName": "mailautumn_${version}_${arch}.deb"
     },
     "appImage": {
-      "artifactName": "${name}-${version}-${arch}.AppImage"
+      "artifactName": "${productName}-${version}-${arch}.AppImage"
     },
     "npmRebuild": true,
     "nodeGypRebuild": false

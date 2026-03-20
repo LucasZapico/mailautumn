@@ -7,7 +7,7 @@ export interface CrmContact {
   phone: string;
   notes: string;
   tags: string[];
-  bucket: string;
+  tag: string;
   starred: boolean;
   createdAt: string;
   updatedAt: string;
@@ -22,8 +22,8 @@ export interface CrmInteraction {
   date: string;
 }
 
-export interface CrmBucket {
-  bucket: string;
+export interface CrmTag {
+  tag: string;
   count: number;
 }
 
@@ -33,11 +33,11 @@ export const activeCrmContactAtom = atom<CrmContact | null>(null);
 /** Interactions for the active CRM contact */
 export const crmInteractionsAtom = atom<CrmInteraction[]>([]);
 
-/** Available buckets */
-export const crmBucketsAtom = atom<CrmBucket[]>([]);
+/** Available tags */
+export const crmTagsAtom = atom<CrmTag[]>([]);
 
-/** Contacts in the currently selected bucket */
-export const crmBucketContactsAtom = atom<CrmContact[]>([]);
+/** Contacts in the currently selected tag */
+export const crmTagContactsAtom = atom<CrmContact[]>([]);
 
 /** Load a contact from the CRM database */
 export const loadCrmContactAtom = atom(null, async (_get, set, email: string) => {
@@ -59,21 +59,21 @@ export const saveCrmContactAtom = atom(null, async (_get, set, updates: Partial<
   set(activeCrmContactAtom, saved);
 });
 
-/** Add a contact to the CRM with a bucket assignment */
+/** Add a contact to the CRM with a tag assignment */
 export const addToCrmAtom = atom(null, async (_get, set, params: {
   email: string;
   name?: string;
   company?: string;
   phone?: string;
-  bucket: string;
+  tag: string;
 }) => {
   if (!window.api?.crmUpsertContact) return;
   const saved = await window.api.crmUpsertContact(params);
   set(activeCrmContactAtom, saved);
-  // Refresh buckets
-  if (window.api.crmBuckets) {
-    const buckets = await window.api.crmBuckets();
-    set(crmBucketsAtom, buckets || []);
+  // Refresh tags
+  if (window.api.crmTags) {
+    const tags = await window.api.crmTags();
+    set(crmTagsAtom, tags || []);
   }
 });
 
@@ -83,24 +83,53 @@ export const removeFromCrmAtom = atom(null, async (_get, set, email: string) => 
   await window.api.crmDeleteContact(email);
   set(activeCrmContactAtom, null);
   set(crmInteractionsAtom, []);
-  if (window.api.crmBuckets) {
-    const buckets = await window.api.crmBuckets();
-    set(crmBucketsAtom, buckets || []);
+  if (window.api.crmTags) {
+    const tags = await window.api.crmTags();
+    set(crmTagsAtom, tags || []);
   }
 });
 
-/** Load buckets list */
-export const loadBucketsAtom = atom(null, async (_get, set) => {
-  if (!window.api?.crmBuckets) return;
-  const buckets = await window.api.crmBuckets();
-  set(crmBucketsAtom, buckets || []);
+/** Load tags list */
+export const loadTagsAtom = atom(null, async (_get, set) => {
+  if (!window.api?.crmTags) return;
+  const tags = await window.api.crmTags();
+  set(crmTagsAtom, tags || []);
 });
 
-/** Load contacts for a specific bucket */
-export const loadBucketContactsAtom = atom(null, async (_get, set, bucket: string) => {
-  if (!window.api?.crmContactsByBucket) return;
-  const contacts = await window.api.crmContactsByBucket(bucket);
-  set(crmBucketContactsAtom, contacts || []);
+/** Load contacts for a specific tag */
+export const loadTagContactsAtom = atom(null, async (_get, set, tag: string) => {
+  if (!window.api?.crmContactsByTag) return;
+  const contacts = await window.api.crmContactsByTag(tag);
+  set(crmTagContactsAtom, contacts || []);
+});
+
+/** Rename a tag across all contacts */
+export const renameTagAtom = atom(null, async (_get, set, { oldName, newName }: { oldName: string; newName: string }) => {
+  if (!window.api?.crmRenameTag) return;
+  await window.api.crmRenameTag(oldName, newName);
+  // Refresh tags and active contact
+  if (window.api.crmTags) {
+    const tags = await window.api.crmTags();
+    set(crmTagsAtom, tags || []);
+  }
+  const contact = _get(activeCrmContactAtom);
+  if (contact?.tag === oldName) {
+    set(activeCrmContactAtom, { ...contact, tag: newName });
+  }
+});
+
+/** Delete a tag (unassigns from all contacts) */
+export const deleteTagAtom = atom(null, async (_get, set, name: string) => {
+  if (!window.api?.crmDeleteTag) return;
+  await window.api.crmDeleteTag(name);
+  if (window.api.crmTags) {
+    const tags = await window.api.crmTags();
+    set(crmTagsAtom, tags || []);
+  }
+  const contact = _get(activeCrmContactAtom);
+  if (contact?.tag === name) {
+    set(activeCrmContactAtom, { ...contact, tag: '' });
+  }
 });
 
 /** Track an interaction (only for existing CRM contacts) */

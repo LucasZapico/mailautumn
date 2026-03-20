@@ -19,7 +19,7 @@ import UndoSendToast from './components/UndoSendToast';
 import {
   settingsOpenAtom, viewModeAtom, selectedThreadIdAtom, activeCategoryAtom,
   hasAccountsAtom, checkAccountsAtom, loadThreadsAtom, loadMessagesAtom,
-  dbReadyAtom, addingAccountAtom, loadCategoriesAtom, isOptimisticWindow,
+  dbReadyAtom, addingAccountAtom, loadCategoriesAtom, loadPinnedIdsAtom, isOptimisticWindow,
   updateSyncStatusAtom, activeSidebarViewAtom, composeOpenAtom,
   activeAccountIdAtom, syncStatusMapAtom, accountsAtom,
 } from './atoms/app';
@@ -128,6 +128,7 @@ function MailApp() {
   const loadThreads = useSetAtom(loadThreadsAtom);
   const loadMessages = useSetAtom(loadMessagesAtom);
   const loadCategories = useSetAtom(loadCategoriesAtom);
+  const loadPinnedIds = useSetAtom(loadPinnedIdsAtom);
   const updateSyncStatus = useSetAtom(updateSyncStatusAtom);
   const showFullMessage = viewMode === 'list' && selectedThreadId !== null;
   const isFeedView = feedCategories.has(activeCategory);
@@ -137,8 +138,9 @@ function MailApp() {
     if (dbReady) {
       loadThreads();
       loadCategories();
+      loadPinnedIds();
     }
-  }, [dbReady, activeCategory, sidebarView, activeAccountId, loadThreads, loadCategories]);
+  }, [dbReady, activeCategory, sidebarView, activeAccountId, loadThreads, loadCategories, loadPinnedIds]);
 
   // Load messages when a thread is selected
   useEffect(() => {

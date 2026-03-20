@@ -23,6 +23,16 @@ log.initialize();
 log.transports.file.level = 'info';
 log.transports.console.level = 'debug';
 
+// Prevent multiple instances — must be before anything else
+const gotLock = app.requestSingleInstanceLock();
+if (!gotLock) {
+  log.initialize();
+  log.warn('Another instance is running — quitting');
+  app.quit();
+  // process.exit ensures we don't race with app.whenReady()
+  process.exit(0);
+}
+
 log.info(`Mailautumn starting — v${app.getVersion()}`);
 log.info(`Platform: ${process.platform} ${process.arch}`);
 log.info(`Electron: ${process.versions.electron}, Chrome: ${process.versions.chrome}, Node: ${process.versions.node}`);
@@ -192,19 +202,13 @@ app.on('before-quit', () => {
   closeDatabase();
 });
 
-// Prevent multiple instances
-const gotLock = app.requestSingleInstanceLock();
-if (!gotLock) {
-  log.warn('Another instance is running — quitting');
-  app.quit();
-} else {
-  app.on('second-instance', () => {
-    if (mainWindow) {
-      if (mainWindow.isMinimized()) mainWindow.restore();
-      mainWindow.focus();
-    }
-  });
-}
+// Focus existing window when a second instance tries to launch
+app.on('second-instance', () => {
+  if (mainWindow) {
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.focus();
+  }
+});
 
 process.on('uncaughtException', (error) => {
   log.error('Uncaught exception:', error);
