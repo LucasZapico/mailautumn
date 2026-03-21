@@ -1,14 +1,14 @@
 # Mailautumn
 
-We hate email. Not the concept — the experience. Every client feels like it was designed for 2005 and then duct-taped into the modern era. We used Spark on macOS and loved it, but after switching to Linux the options were... limited. Mailspring was the closest thing to good, but it was far from the email experience we actually wanted.
+> Built on top of [Mailspring](https://getmailspring.com/) ([GitHub](https://github.com/Foundry376/Mailspring)). This project is a fork of the Mailspring sync engine — we wrote a new frontend, but the C++ `mailsync` binary that handles IMAP/SMTP sync, threading, and search indexing is entirely their work. A massive thank you to the Mailspring team for building and maintaining that foundation. Without it, this project wouldn't exist.
 
-It's been on our hit list for a long time to try and build something better. With the improvements in AI tooling, we decided to take a shot and see how far we could get. This is the result.
+We hate email. Not the concept — the experience. Every client feels like it was designed for 2005 and then duct-taped into the modern era. We used Spark on macOS and loved it, but after switching to Linux the options were limited. Mailspring was the closest thing to good, but it was far from the email experience we actually wanted.
 
-Mailautumn is a ground-up rewrite of [Mailspring's](https://github.com/Foundry376/Mailspring) frontend. The battle-tested `mailsync` C++ engine handles all the hard stuff (IMAP/SMTP sync, threading, search indexing). We just built the UI we always wanted on top of it.
+This started as a hack to see if we could get the email workflow we'd been wanting for years — conversations that feel like chat, newsletters that don't clog the inbox, AI that actually helps with drafts, and a UI that gets out of the way. With improvements in AI tooling, we decided to take a shot and see how far we could get.
 
-We're happy with where it is. It's an improved experience — at least for our workflow and needs. Use it, fork it, enjoy it. We're happy to get feedback, and pardon any terrible code. This is a side project, so we'll respond and improve when we have bandwidth.
+This is the result. It's early, it's rough in places, and it's very much a side project. But we're genuinely happy with the functionality and it's become our daily driver. We hope to keep building on it as bandwidth allows.
 
-A huge thank you to the Mailspring team for doing all the heavy lifting.
+**No roadmap. No heavy structure.** We're just working through what works for us. If you find it useful — use it, fork it, hack away. Feel free to open an issue or suggestion and we'll review when we can. Pardon any terrible code.
 
 ## Features
 

@@ -1,0 +1,15 @@
+Mailautumn
+Copyright (c) 2026 Mailautumn Contributors
+
+This project is built on top of Mailspring (https://getmailspring.com/).
+The mailsync C++ binary included in this distribution is from the Mailspring
+project and is used under the terms of the GNU General Public License v3.0.
+
+Mailspring
+Copyright (c) 2017-2024 Foundry 376, LLC
+https://github.com/Foundry376/Mailspring
+Licensed under GPL-3.0
+
+This project is a derivative work. The frontend (src/) is original code.
+The mailsync binary (resources/mailsync/) is from upstream Mailspring.
+Both are licensed under GPL-3.0.
