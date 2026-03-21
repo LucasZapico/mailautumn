@@ -6,15 +6,11 @@ const LOCAL_SERVER_PORT = 12141;
 
 // ── Gmail OAuth ──
 
-// OAuth client IDs/secrets — override via env vars, or fall back to upstream
-// Mailspring defaults (these are public in the GPL-3.0 upstream repo).
-export const GMAIL_CLIENT_ID =
-  process.env.MS_GMAIL_CLIENT_ID ||
-  'REMOVED_GMAIL_CLIENT_ID';
-
-export const GMAIL_CLIENT_SECRET =
-  process.env.MS_GMAIL_CLIENT_SECRET ||
-  'REMOVED_GMAIL_CLIENT_SECRET';
+// OAuth credentials — must be provided via environment variables.
+// Create your own at https://console.cloud.google.com/ (Gmail)
+// or https://portal.azure.com/ (Outlook). See README for details.
+export const GMAIL_CLIENT_ID = process.env.MS_GMAIL_CLIENT_ID || '';
+export const GMAIL_CLIENT_SECRET = process.env.MS_GMAIL_CLIENT_SECRET || '';
 
 const GMAIL_SCOPES = [
   'https://mail.google.com/',
@@ -26,8 +22,7 @@ const GMAIL_SCOPES = [
 
 // ── O365 OAuth ──
 
-const O365_CLIENT_ID =
-  process.env.MS_O365_CLIENT_ID || 'REMOVED_O365_CLIENT_ID';
+const O365_CLIENT_ID = process.env.MS_O365_CLIENT_ID || '';
 
 const O365_SCOPES = [
   'user.read',

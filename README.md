@@ -113,12 +113,15 @@ Place the binary and shared libraries in `resources/mailsync/`, or set the `MAIL
 npm install
 ```
 
-### Environment variables (optional)
+### Environment variables
 
-OAuth credentials are bundled from upstream Mailspring by default. Override with your own if needed:
+OAuth credentials are required for Gmail/Outlook sign-in. Create your own:
+
+- **Gmail**: [Google Cloud Console](https://console.cloud.google.com/) — create a project, enable Gmail API, create OAuth 2.0 credentials (Desktop app type), add `http://127.0.0.1:12141` as authorized redirect URI
+- **Outlook**: [Azure Portal](https://portal.azure.com/) — register an app, add `http://localhost:12141/desktop` as redirect URI
 
 ```bash
-# Override OAuth credentials (optional — defaults work out of the box)
+# Required for OAuth sign-in
 MS_GMAIL_CLIENT_ID=your-google-oauth-client-id
 MS_GMAIL_CLIENT_SECRET=your-google-oauth-client-secret
 MS_O365_CLIENT_ID=your-microsoft-oauth-client-id
