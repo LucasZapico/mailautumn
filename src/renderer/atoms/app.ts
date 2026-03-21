@@ -536,7 +536,7 @@ export const trashThreadAtom = atom(null, async (get, set, threadId: string) => 
     type: 'ChangeFolderTask',
     threadIds: [threadId],
     folder: { id: trashFolder.id, role: 'trash', path: trashFolder.path },
-  }).catch(() => {});
+  }).catch(() => {/* fire-and-forget — optimistic UI already applied */});
 });
 
 export const markUnreadAtom = atom(null, (get, set, threadId: string) => {
@@ -555,7 +555,7 @@ export const markUnreadAtom = atom(null, (get, set, threadId: string) => {
     type: 'ChangeUnreadTask',
     unread: true,
     threadIds: [threadId],
-  }).catch(() => {});
+  }).catch(() => {/* fire-and-forget — optimistic UI already applied */});
 });
 
 export const setActiveCategoryAtom = atom(null, (_get, set, cat: CategoryTab) => {
