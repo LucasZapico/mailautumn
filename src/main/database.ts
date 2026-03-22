@@ -475,6 +475,17 @@ export function getMessages(threadId: string): DbMessage[] {
   }
 }
 
+/** Get just the message IDs for a thread (lightweight — no body/data parsing) */
+export function getMessageIdsForThread(threadId: string): string[] {
+  if (!db) return [];
+  try {
+    const rows = db.prepare('SELECT id FROM Message WHERE threadId = ?').all(threadId) as { id: string }[];
+    return rows.map(r => r.id);
+  } catch {
+    return [];
+  }
+}
+
 export function getMessageBody(messageId: string): string {
   if (!db) return '';
   try {

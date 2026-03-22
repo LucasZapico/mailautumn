@@ -6,6 +6,8 @@ const api = {
     ipcRenderer.invoke('db:get-threads', options),
   getMessages: (threadId: string) =>
     ipcRenderer.invoke('db:get-messages', threadId),
+  getMessageIds: (threadId: string) =>
+    ipcRenderer.invoke('db:get-message-ids', threadId),
   getMessageBody: (messageId: string) =>
     ipcRenderer.invoke('db:get-message-body', messageId),
   getCategories: (accountId?: string) =>

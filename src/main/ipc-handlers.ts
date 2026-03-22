@@ -26,6 +26,10 @@ export function registerIpcHandlers(): void {
     return database.getMessages(threadId);
   });
 
+  ipcMain.handle('db:get-message-ids', (_event, threadId: string) => {
+    return database.getMessageIdsForThread(threadId);
+  });
+
   ipcMain.handle('db:get-message-body', (_event, messageId: string) => {
     return database.getMessageBody(messageId);
   });

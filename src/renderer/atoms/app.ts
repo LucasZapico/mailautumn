@@ -340,20 +340,34 @@ export const setDomainTypeAtom = atom(null, async (get, set, { domain, type }: {
   pushToast(`Moved ${matching.length} from @${domain} to ${typeLabels[type] || type}`);
 });
 
-export const toggleStarAtom = atom(null, (get, set, threadId: string) => {
+/** Get message IDs for a thread — from loaded messages or via IPC fallback.
+ *  mailsync needs messageIds to find IMAP UIDs — threadIds alone aren't enough. */
+async function getMessageIds(thread: Thread): Promise<string[]> {
+  // Use loaded messages if available
+  if (thread.messages.length > 0) {
+    return thread.messages.map(m => m.id);
+  }
+  // Fallback: query DB for message IDs
+  if (window.api?.getMessageIds) {
+    return await window.api.getMessageIds(thread.id);
+  }
+  return [];
+}
+
+export const toggleStarAtom = atom(null, async (get, set, threadId: string) => {
   const thread = get(threadsAtom).find(t => t.id === threadId);
   if (!thread) return;
-  // Optimistic update
   markOptimistic();
   set(threadsAtom, get(threadsAtom).map(t =>
     t.id === threadId ? { ...t, starred: !t.starred } : t
   ));
-  // Queue task to mailsync
   if (window.api) {
+    const messageIds = await getMessageIds(thread);
     window.api.queueTask(thread.accountId, {
       type: 'ChangeStarredTask',
       starred: !thread.starred,
       threadIds: [threadId],
+      messageIds,
     }).catch(() => {/* fire-and-forget — optimistic UI already applied */});
   }
 });
@@ -382,23 +396,29 @@ export const markAllReadAtom = atom(null, (get, set) => {
 
   // Queue tasks grouped by account
   if (window.api) {
-    const byAccount = new Map<string, string[]>();
+    const byAccount = new Map<string, { threadIds: string[]; threads: Thread[] }>();
     for (const t of unread) {
-      const ids = byAccount.get(t.accountId) || [];
-      ids.push(t.id);
-      byAccount.set(t.accountId, ids);
+      const entry = byAccount.get(t.accountId) || { threadIds: [], threads: [] };
+      entry.threadIds.push(t.id);
+      entry.threads.push(t);
+      byAccount.set(t.accountId, entry);
     }
-    for (const [accountId, threadIds] of byAccount) {
-      window.api.queueTask(accountId, {
-        type: 'ChangeUnreadTask',
-        unread: false,
-        threadIds,
-      }).catch(() => {/* fire-and-forget — optimistic UI already applied */});
+    for (const [accountId, { threadIds, threads: accountThreads }] of byAccount) {
+      // Gather all message IDs (async, but fire-and-forget)
+      Promise.all(accountThreads.map(t => getMessageIds(t))).then(idArrays => {
+        const messageIds = idArrays.flat();
+        window.api.queueTask(accountId, {
+          type: 'ChangeUnreadTask',
+          unread: false,
+          threadIds,
+          messageIds,
+        });
+      }).catch(() => {/* fire-and-forget */});
     }
   }
 });
 
-export const markReadAtom = atom(null, (get, set, threadId: string) => {
+export const markReadAtom = atom(null, async (get, set, threadId: string) => {
   const thread = get(threadsAtom).find(t => t.id === threadId);
   if (!thread) return;
   markOptimistic();
@@ -413,10 +433,12 @@ export const markReadAtom = atom(null, (get, set, threadId: string) => {
       : t
   ));
   if (window.api) {
+    const messageIds = await getMessageIds(thread);
     window.api.queueTask(thread.accountId, {
       type: 'ChangeUnreadTask',
       unread: false,
       threadIds: [threadId],
+      messageIds,
     }).catch(() => {/* fire-and-forget — optimistic UI already applied */});
   }
 });
@@ -506,9 +528,11 @@ export const archiveThreadAtom = atom(null, async (get, set, threadId: string) =
   navigateAfterAction(get, set, threadId);
   set(threadsAtom, get(threadsAtom).filter(t => t.id !== threadId));
   // Gmail: remove inbox label
+  const messageIds = await getMessageIds(thread);
   const result = await window.api.queueTask(thread.accountId, {
     type: 'ChangeLabelsTask',
     threadIds: [threadId],
+    messageIds,
     labelsToAdd: [],
     labelsToRemove: [{ id: inboxLabel.id, role: 'inbox', path: 'INBOX' }],
   });
@@ -532,14 +556,16 @@ export const trashThreadAtom = atom(null, async (get, set, threadId: string) => 
   navigateAfterAction(get, set, threadId);
   set(threadsAtom, get(threadsAtom).filter(t => t.id !== threadId));
   // Move to trash
+  const messageIds = await getMessageIds(thread);
   window.api.queueTask(thread.accountId, {
     type: 'ChangeFolderTask',
     threadIds: [threadId],
+    messageIds,
     folder: { id: trashFolder.id, role: 'trash', path: trashFolder.path },
   }).catch(() => {/* fire-and-forget — optimistic UI already applied */});
 });
 
-export const markUnreadAtom = atom(null, (get, set, threadId: string) => {
+export const markUnreadAtom = atom(null, async (get, set, threadId: string) => {
   const thread = get(threadsAtom).find(t => t.id === threadId);
   if (!thread || !window.api) return;
   markOptimistic();
@@ -551,10 +577,12 @@ export const markUnreadAtom = atom(null, (get, set, threadId: string) => {
   set(threadsAtom, get(threadsAtom).map(t =>
     t.id === threadId ? { ...t, unread: true } : t
   ));
+  const messageIds = await getMessageIds(thread);
   window.api.queueTask(thread.accountId, {
     type: 'ChangeUnreadTask',
     unread: true,
     threadIds: [threadId],
+    messageIds,
   }).catch(() => {/* fire-and-forget — optimistic UI already applied */});
 });
 
