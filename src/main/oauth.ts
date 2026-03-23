@@ -6,11 +6,12 @@ const LOCAL_SERVER_PORT = 12141;
 
 // ── Gmail OAuth ──
 
-// OAuth credentials — must be provided via environment variables.
+// OAuth credentials — read at call time (not import time) so .env loader
+// in index.ts has a chance to populate process.env first.
 // Create your own at https://console.cloud.google.com/ (Gmail)
 // or https://portal.azure.com/ (Outlook). See README for details.
-export const GMAIL_CLIENT_ID = process.env.MS_GMAIL_CLIENT_ID || '';
-export const GMAIL_CLIENT_SECRET = process.env.MS_GMAIL_CLIENT_SECRET || '';
+export function getGmailClientId(): string { return process.env.MS_GMAIL_CLIENT_ID || ''; }
+export function getGmailClientSecret(): string { return process.env.MS_GMAIL_CLIENT_SECRET || ''; }
 
 const GMAIL_SCOPES = [
   'https://mail.google.com/',
@@ -22,7 +23,7 @@ const GMAIL_SCOPES = [
 
 // ── O365 OAuth ──
 
-const O365_CLIENT_ID = process.env.MS_O365_CLIENT_ID || '';
+function getO365ClientId(): string { return process.env.MS_getO365ClientId() || ''; }
 
 const O365_SCOPES = [
   'user.read',
@@ -52,7 +53,7 @@ function generateCodeChallenge(verifier: string): string {
 
 function gmailAuthUrl(): string {
   const params = new URLSearchParams({
-    client_id: GMAIL_CLIENT_ID,
+    client_id: getGmailClientId(),
     redirect_uri: `http://127.0.0.1:${LOCAL_SERVER_PORT}`,
     response_type: 'code',
     scope: GMAIL_SCOPES.join(' '),
@@ -65,7 +66,7 @@ function gmailAuthUrl(): string {
 function o365AuthUrl(): string {
   codeVerifier = crypto.randomUUID() + crypto.randomUUID();
   const params = new URLSearchParams({
-    client_id: O365_CLIENT_ID,
+    client_id: getO365ClientId(),
     redirect_uri: `http://localhost:${LOCAL_SERVER_PORT}/desktop`,
     response_type: 'code',
     scope: O365_SCOPES.join(' '),
@@ -90,8 +91,8 @@ async function exchangeGmailCode(code: string): Promise<TokenResponse> {
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
       code,
-      client_id: GMAIL_CLIENT_ID,
-      client_secret: GMAIL_CLIENT_SECRET,
+      client_id: getGmailClientId(),
+      client_secret: getGmailClientSecret(),
       redirect_uri: `http://127.0.0.1:${LOCAL_SERVER_PORT}`,
       grant_type: 'authorization_code',
     }),
@@ -108,7 +109,7 @@ async function exchangeO365Code(code: string): Promise<TokenResponse> {
     body: new URLSearchParams({
       code,
       scope: tokenScopes.join(' '),
-      client_id: O365_CLIENT_ID,
+      client_id: getO365ClientId(),
       code_verifier: codeVerifier,
       grant_type: 'authorization_code',
       redirect_uri: `http://localhost:${LOCAL_SERVER_PORT}/desktop`,
@@ -238,7 +239,7 @@ export function beginOAuth(provider: 'gmail' | 'outlook'): Promise<string> {
               smtp_username: profile.email,
               smtp_security: 'SSL / TLS',
               smtp_allow_insecure_ssl: false,
-              refresh_client_id: GMAIL_CLIENT_ID,
+              refresh_client_id: getGmailClientId(),
             },
           };
         } else {
@@ -261,7 +262,7 @@ export function beginOAuth(provider: 'gmail' | 'outlook'): Promise<string> {
               smtp_username: profile.email,
               smtp_security: 'STARTTLS',
               smtp_allow_insecure_ssl: false,
-              refresh_client_id: O365_CLIENT_ID,
+              refresh_client_id: getO365ClientId(),
             },
           };
         }

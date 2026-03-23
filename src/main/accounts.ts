@@ -4,7 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import log from 'electron-log/main';
 import { getConfigDir } from './database';
-import { GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET } from './oauth';
+import { getGmailClientId, getGmailClientSecret } from './oauth';
 import type { AccountForSync } from './mailsync';
 
 interface StoredAccount {
@@ -240,8 +240,8 @@ async function fetchGmailAvatar(email: string): Promise<string | null> {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
-      client_id: GMAIL_CLIENT_ID,
-      client_secret: GMAIL_CLIENT_SECRET,
+      client_id: getGmailClientId(),
+      client_secret: getGmailClientSecret(),
       refresh_token: refreshToken,
       grant_type: 'refresh_token',
     }),

@@ -6,7 +6,7 @@ import readline from 'readline';
 import log from 'electron-log/main';
 import { app, BrowserWindow } from 'electron';
 import { getConfigDir } from './database';
-import { GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET } from './oauth';
+import { getGmailClientId, getGmailClientSecret } from './oauth';
 import { startIdentityServer } from './identity-server';
 
 // Path to mailsync binary — resolved in order:
@@ -83,8 +83,8 @@ function makeEnv(): NodeJS.ProcessEnv {
     IDENTITY_SERVER: identityServer,
     SASL_PATH: MAILSYNC_DIR,
     LD_LIBRARY_PATH: `${MAILSYNC_DIR}:${process.env.LD_LIBRARY_PATH || ''}`,
-    GMAIL_CLIENT_ID,
-    GMAIL_CLIENT_SECRET,
+    GMAIL_CLIENT_ID: getGmailClientId(),
+    GMAIL_CLIENT_SECRET: getGmailClientSecret(),
   };
 }
 
