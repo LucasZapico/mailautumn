@@ -125,7 +125,7 @@ export function setOverride(threadId: string, type: EmailType, senderEmail?: str
   loadOverrides();
   overrides.set(threadId, { type, ts: Date.now() });
   saveOverrides();
-  log.info(`[overrides] thread ${threadId} → ${type}`);
+  log.info(`[overrides] thread ${threadId} → ${type} (sender: ${senderEmail || 'none'})`);
 
   // Learn sender rule — skip for:
   // - 'conversation' type (don't block human senders)
@@ -135,17 +135,21 @@ export function setOverride(threadId: string, type: EmailType, senderEmail?: str
   if (senderEmail && type !== 'conversation') {
     const key = senderEmail.toLowerCase();
     // Check if this is one of the user's own addresses
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { getAllAccountsForSync } = require('./accounts');
-    const ownEmails = new Set<string>();
+    let ownEmails = new Set<string>();
     try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { getAllAccountsForSync } = require('./accounts');
       for (const acct of getAllAccountsForSync()) {
         ownEmails.add(acct.emailAddress.toLowerCase());
         for (const alias of acct.settings?.aliases || []) {
           ownEmails.add(alias.toLowerCase());
         }
       }
-    } catch { /* ignore */ }
+    } catch (err) {
+      log.warn('[overrides] could not load accounts for own-email check:', err);
+    }
+
+    log.info(`[overrides] sender check: ${key} own=${ownEmails.has(key)} (ownEmails: ${[...ownEmails].join(', ')})`);
 
     if (!ownEmails.has(key)) {
       loadRules();

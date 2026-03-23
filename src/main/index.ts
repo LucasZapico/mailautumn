@@ -1,6 +1,24 @@
 import { app, BrowserWindow, clipboard, Menu, MenuItem, shell, protocol, net } from 'electron';
 import path, { join } from 'path';
+import fs from 'fs';
 import { is } from '@electron-toolkit/utils';
+
+// Load .env file (gitignored) for OAuth credentials
+const envPath = join(__dirname, '..', '..', '.env');
+if (fs.existsSync(envPath)) {
+  for (const line of fs.readFileSync(envPath, 'utf-8').split('\n')) {
+    const match = line.match(/^([A-Z_]+)\s*=\s*(.+)$/);
+    if (match && !process.env[match[1]]) process.env[match[1]] = match[2].trim();
+  }
+}
+// Also check packaged app location
+const envPathPkg = join(process.resourcesPath || '', '..', '.env');
+if (!fs.existsSync(envPath) && fs.existsSync(envPathPkg)) {
+  for (const line of fs.readFileSync(envPathPkg, 'utf-8').split('\n')) {
+    const match = line.match(/^([A-Z_]+)\s*=\s*(.+)$/);
+    if (match && !process.env[match[1]]) process.env[match[1]] = match[2].trim();
+  }
+}
 import log from 'electron-log/main';
 import { openDatabase, closeDatabase, getConfigDir } from './database';
 import { getAllAccountsForSync, refreshMissingAvatars } from './accounts';
@@ -36,6 +54,14 @@ if (!gotLock) {
 log.info(`Mailautumn starting — v${app.getVersion()}`);
 log.info(`Platform: ${process.platform} ${process.arch}`);
 log.info(`Electron: ${process.versions.electron}, Chrome: ${process.versions.chrome}, Node: ${process.versions.node}`);
+
+// Warn if OAuth credentials are missing
+if (!process.env.MS_GMAIL_CLIENT_ID || !process.env.MS_GMAIL_CLIENT_SECRET) {
+  log.warn('Gmail OAuth credentials not set. Create a .env file or set MS_GMAIL_CLIENT_ID + MS_GMAIL_CLIENT_SECRET. See README for setup.');
+}
+if (!process.env.MS_O365_CLIENT_ID) {
+  log.warn('O365 OAuth credentials not set. Set MS_O365_CLIENT_ID for Outlook support. See README for setup.');
+}
 
 let mainWindow: BrowserWindow | null = null;
 
