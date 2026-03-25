@@ -316,6 +316,13 @@ export default function ComposeWindow() {
         return false;
       },
     },
+    onUpdate: ({ editor: ed }) => {
+      // Sync body changes back to compose state and trigger debounced save
+      const html = ed.getHTML();
+      setCompose(prev => prev ? { ...prev, body: html } : prev);
+      if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
+      draftTimerRef.current = setTimeout(() => saveDraft(), 5000);
+    },
     onFocus: () => setFocused(true),
     onBlur: () => setFocused(false),
   });
@@ -335,6 +342,20 @@ export default function ComposeWindow() {
       setTimeout(() => editor.commands.focus('end'), 200);
     }
   }, [compose?.mode, editor]);
+
+  // Save draft when navigating away (compose set to null by external action)
+  const composeRef = useRef(compose);
+  composeRef.current = compose;
+  useEffect(() => {
+    return () => {
+      if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
+      // If compose still has content when unmounting, save it
+      const c = composeRef.current;
+      if (c && (c.to.length > 0 || c.subject || c.body)) {
+        saveDraft();
+      }
+    };
+  }, [saveDraft]);
 
   if (!compose) return null;
 
