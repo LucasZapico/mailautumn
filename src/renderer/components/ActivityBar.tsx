@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useAtomValue, useSetAtom } from 'jotai';
-import { IoMailOutline, IoSettingsOutline, IoSyncOutline, IoWarningOutline } from 'react-icons/io5';
-import { accountsAtom, activeAccountIdAtom, setActiveAccountAtom, settingsOpenAtom, syncStatusMapAtom, addingAccountAtom, accountUnreadCountsAtom } from '../atoms/app';
+import { IoMailOutline, IoSettingsOutline, IoSyncOutline, IoWarningOutline, IoSparklesOutline } from 'react-icons/io5';
+import { accountsAtom, activeAccountIdAtom, setActiveAccountAtom, settingsOpenAtom, syncStatusMapAtom, addingAccountAtom, accountUnreadCountsAtom, aiStatusAtom } from '../atoms/app';
 import type { SyncStatus } from '../atoms/app';
 
 const providerIcons: Record<string, string> = {
@@ -48,6 +48,40 @@ function AccountImg({ avatarUrl, fallback }: { avatarUrl?: string | null; fallba
   );
 }
 
+function AIStatusIndicator() {
+  const aiStatus = useAtomValue(aiStatusAtom);
+
+  // Hide entirely when we haven't checked yet (brief flash on mount)
+  if (aiStatus.status === 'unchecked') return null;
+
+  const isError = aiStatus.status === 'error';
+  const isChecking = aiStatus.status === 'checking';
+  const isConnected = aiStatus.status === 'connected';
+  const isDisabled = aiStatus.status === 'disabled';
+
+  const title = isError
+    ? `AI error: ${aiStatus.error}`
+    : isChecking ? 'Checking AI connection...'
+    : isDisabled ? 'AI sorting disabled'
+    : 'AI connected';
+
+  return (
+    <div
+      className={`w-10 h-10 rounded-xl flex items-center justify-center mb-1 relative
+        ${isError ? 'text-red-400 hover:bg-red-500/10' : isConnected ? 'text-accent hover:bg-bg-hover' : 'text-text-tertiary hover:bg-bg-hover'}`}
+      title={title}
+    >
+      <IoSparklesOutline size={16} className={isChecking ? 'animate-pulse' : ''} />
+      {isError && (
+        <div className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-red-500" />
+      )}
+      {isConnected && (
+        <div className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-green-500" />
+      )}
+    </div>
+  );
+}
+
 export default function ActivityBar() {
   const accounts = useAtomValue(accountsAtom);
   const activeAccountId = useAtomValue(activeAccountIdAtom);
@@ -64,6 +98,7 @@ export default function ActivityBar() {
         onClick={() => setActiveAccount(null)}
         className={`relative w-10 h-10 rounded-xl flex items-center justify-center mb-2 transition-all duration-150 cursor-pointer
           ${activeAccountId === null ? 'bg-accent text-accent-text' : 'bg-bg-tertiary text-text-secondary hover:bg-bg-hover hover:text-text-primary'}`}
+        title="All Inboxes"
       >
         <IoMailOutline size={18} />
         {activeAccountId === null && (
@@ -112,6 +147,9 @@ export default function ActivityBar() {
 
       <div className="flex-1" />
 
+      {/* AI status */}
+      <AIStatusIndicator />
+
       {/* Add account button */}
       <button
         onClick={() => setAddingAccount(true)}
@@ -125,6 +163,7 @@ export default function ActivityBar() {
       <button
         onClick={() => setSettingsOpen(true)}
         className="w-10 h-10 rounded-xl flex items-center justify-center text-text-tertiary hover:text-text-secondary hover:bg-bg-hover transition-colors cursor-pointer"
+        title="Settings"
       >
         <IoSettingsOutline size={18} />
       </button>

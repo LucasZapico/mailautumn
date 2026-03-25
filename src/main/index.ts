@@ -25,7 +25,7 @@ import { getAllAccountsForSync, refreshMissingAvatars } from './accounts';
 import { registerIpcHandlers } from './ipc-handlers';
 import { startSyncForAccount, stopAllSync } from './mailsync';
 import { stopIdentityServer } from './identity-server';
-import { loadAISettings } from './ai-classify';
+import { loadAISettings, checkAIConnection } from './ai-classify';
 import { openCrmDb, closeCrmDb } from './crm-db';
 import { registerCrmHandlers } from './crm-handlers';
 
@@ -201,6 +201,13 @@ app.whenReady().then(() => {
   }
 
   createWindow();
+
+  // Check AI connection (non-blocking)
+  checkAIConnection().then((result) => {
+    if (mainWindow?.webContents) {
+      mainWindow.webContents.send('ai:status', result);
+    }
+  }).catch(err => log.warn('AI connection check failed:', err));
 
   // Backfill missing profile pictures (non-blocking)
   // Notify renderer to re-read accounts when done

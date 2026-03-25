@@ -7,7 +7,7 @@ import * as database from './database';
 import * as accounts from './accounts';
 import * as mailsync from './mailsync';
 import { beginOAuth, awaitOAuth, cancelOAuth } from './oauth';
-import { getAISettings, saveAISettings, loadAISettings, testAIConnection } from './ai-classify';
+import { getAISettings, saveAISettings, loadAISettings, testAIConnection, checkAIConnection } from './ai-classify';
 import { setOverride, removeOverride, setDomainRule, getAllSenderRules, removeSenderRule, clearAllOverrides } from './manual-overrides';
 import { analyzeThread, getCachedAnalysis } from './ai-thread';
 import { generateDraft } from './ai-compose';
@@ -232,13 +232,21 @@ export function registerIpcHandlers(): void {
     return getAISettings();
   });
 
-  ipcMain.handle('ai:save-settings', (_event, settings: AISettings) => {
+  ipcMain.handle('ai:save-settings', async (_event, settings: AISettings) => {
     saveAISettings(settings);
+    // Re-check connection with the new settings and push status to renderer
+    const result = await checkAIConnection();
+    const win = BrowserWindow.getFocusedWindow();
+    if (win?.webContents) win.webContents.send('ai:status', result);
     return { success: true };
   });
 
   ipcMain.handle('ai:test-connection', async (_event, settings: AISettings) => {
     return testAIConnection(settings);
+  });
+
+  ipcMain.handle('ai:check-connection', async () => {
+    return checkAIConnection();
   });
 
   // ── Thread Analysis ──

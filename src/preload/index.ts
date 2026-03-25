@@ -56,6 +56,13 @@ const api = {
     ipcRenderer.invoke('ai:save-settings', settings),
   testAIConnection: (settings: any) =>
     ipcRenderer.invoke('ai:test-connection', settings),
+  checkAIConnection: () =>
+    ipcRenderer.invoke('ai:check-connection'),
+  onAIStatus: (callback: (data: { status: string; error?: string }) => void) => {
+    const handler = (_event: any, data: any) => callback(data);
+    ipcRenderer.on('ai:status', handler);
+    return () => ipcRenderer.removeListener('ai:status', handler);
+  },
   onAIClassificationsUpdated: (callback: () => void) => {
     const handler = () => callback();
     ipcRenderer.on('ai:classifications-updated', handler);

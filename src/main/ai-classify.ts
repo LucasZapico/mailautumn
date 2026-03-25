@@ -257,3 +257,23 @@ export async function testAIConnection(s: AISettings): Promise<{ success: boolea
     settings = prev;
   }
 }
+
+/** Lightweight startup check — verifies the AI endpoint is reachable using current saved settings.
+ *  Returns a status object suitable for pushing to the renderer. */
+export async function checkAIConnection(): Promise<{ status: 'disabled' | 'connected' | 'error'; error?: string }> {
+  if (!settings.enabled || !settings.endpoint) {
+    return { status: 'disabled' };
+  }
+  try {
+    const result = await testAIConnection(settings);
+    if (result.success) {
+      log.info('[ai-classify] startup check: connected');
+      return { status: 'connected' };
+    }
+    log.warn('[ai-classify] startup check failed:', result.error);
+    return { status: 'error', error: result.error };
+  } catch (err: any) {
+    log.warn('[ai-classify] startup check failed:', err.message);
+    return { status: 'error', error: err.message };
+  }
+}
