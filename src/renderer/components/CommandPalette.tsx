@@ -8,7 +8,8 @@ import {
 import { useAtom, useSetAtom, useAtomValue } from 'jotai';
 import {
   commandPaletteOpenAtom, settingsOpenAtom, selectThreadAtom,
-  setSidebarViewAtom, composeOpenAtom,
+  setSidebarViewAtom, composeOpenAtom, setAliasFilterAtom,
+  setActiveCategoryAtom,
 } from '../atoms/app';
 
 // ── Types ──
@@ -143,6 +144,9 @@ export default function CommandPalette() {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [open, setOpen]);
 
+  const setAliasFilter = useSetAtom(setAliasFilterAtom);
+  const setActiveCategory = useSetAtom(setActiveCategoryAtom);
+
   useEffect(() => {
     if (open) {
       setQuery('');
@@ -159,8 +163,12 @@ export default function CommandPalette() {
     } else if (item.kind === 'search') {
       if (item.data.type === 'thread') {
         selectThread(item.data.id);
+      } else if (item.data.type === 'contact') {
+        // Filter inbox to show all threads with this contact
+        setActiveCategory('all');
+        setSidebarView('inbox');
+        setAliasFilter(item.data.subtitle); // subtitle is the email address
       }
-      // Contact: could open compose to that contact, for now just close
     }
     setOpen(false);
   };

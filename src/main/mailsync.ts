@@ -77,7 +77,7 @@ function makeIdentity(emailAddress: string) {
 
 function makeEnv(): NodeJS.ProcessEnv {
   const identityServer = startIdentityServer();
-  return {
+  const env: NodeJS.ProcessEnv = {
     ...process.env,
     CONFIG_DIR_PATH: getConfigDir(),
     IDENTITY_SERVER: identityServer,
@@ -86,6 +86,8 @@ function makeEnv(): NodeJS.ProcessEnv {
     GMAIL_CLIENT_ID: getGmailClientId(),
     GMAIL_CLIENT_SECRET: getGmailClientSecret(),
   };
+  if (!env.GMAIL_CLIENT_SECRET) log.warn('[mailsync] GMAIL_CLIENT_SECRET is empty — OAuth token refresh will fail');
+  return env;
 }
 
 // ── Single mailsync process ──

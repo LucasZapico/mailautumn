@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
-import { useAtom, useAtomValue } from 'jotai';
+import { useAtom, useAtomValue, useSetAtom } from 'jotai';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Link from '@tiptap/extension-link';
@@ -9,7 +9,7 @@ import {
   IoChevronDown, IoArrowBackOutline, IoCheckmarkOutline,
   IoSparklesOutline,
 } from 'react-icons/io5';
-import { composeOpenAtom, accountsAtom, activeAccountIdAtom, undoSendDelayAtom, pendingSendAtom, threadsAtom } from '../atoms/app';
+import { composeOpenAtom, accountsAtom, activeAccountIdAtom, undoSendDelayAtom, pendingSendAtom, threadsAtom, saveDraftAtom, destroyDraftAtom } from '../atoms/app';
 import FormattingToolbar from './FormattingToolbar';
 import type { ComposeState } from '../atoms/app';
 import type { Account } from '../data/types';
@@ -279,6 +279,9 @@ export default function ComposeWindow() {
     ? allAccounts.filter(a => a.id === activeAccountId)
     : allAccounts;
   const undoDelay = useAtomValue(undoSendDelayAtom);
+  const saveDraft = useSetAtom(saveDraftAtom);
+  const destroyDraft = useSetAtom(destroyDraftAtom);
+  const draftTimerRef = useRef<ReturnType<typeof setTimeout>>();
   const [focused, setFocused] = useState(false);
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
@@ -337,6 +340,9 @@ export default function ComposeWindow() {
 
   const update = (partial: Partial<ComposeState>) => {
     setCompose({ ...compose, ...partial });
+    // Debounced auto-save draft (5s after last edit)
+    if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
+    draftTimerRef.current = setTimeout(() => saveDraft(), 5000);
   };
 
   const sendAccount = compose.accountId
@@ -373,6 +379,8 @@ export default function ComposeWindow() {
       version: 1,
     };
 
+    if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
+
     if (undoDelay > 0) {
       setPendingSend({
         accountId: sendAccount.id,
@@ -380,6 +388,7 @@ export default function ComposeWindow() {
         compose: { ...compose },
         queuedAt: Date.now(),
       });
+      if (compose?.draftId) destroyDraft();
       setCompose(null);
     } else {
       setSending(true);
@@ -393,6 +402,7 @@ export default function ComposeWindow() {
           setSendError(result.error || 'Failed to queue send task');
           return;
         }
+        if (compose?.draftId) destroyDraft();
         setCompose(null);
       } catch (err: any) {
         setSendError(err?.message || 'Send failed');
@@ -459,6 +469,8 @@ export default function ComposeWindow() {
   handleSendRef.current = handleSend;
 
   const handleDiscard = () => {
+    if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
+    if (compose?.draftId) destroyDraft();
     setCompose(null);
   };
 
