@@ -336,7 +336,17 @@ export const accountUnreadCountsAtom = atom<Map<string, number>>(new Map());
 
 // ── Write atoms (actions) ──
 
-export const selectThreadAtom = atom(null, (_get, set, id: string | null) => {
+/** Save draft (if any content) and close compose. Used by navigation actions. */
+function closeComposeIfOpen(get: any, set: any): void {
+  const compose = get(composeOpenAtom);
+  if (!compose) return;
+  const hasContent = compose.to.length > 0 || compose.subject || compose.body;
+  if (hasContent) set(saveDraftAtom);
+  set(composeOpenAtom, null);
+}
+
+export const selectThreadAtom = atom(null, (get, set, id: string | null) => {
+  closeComposeIfOpen(get, set);
   set(selectedThreadIdAtom, id);
 });
 
@@ -676,33 +686,27 @@ export const markUnreadAtom = atom(null, async (get, set, threadId: string) => {
   }).catch(() => {/* fire-and-forget — optimistic UI already applied */});
 });
 
-export const setActiveCategoryAtom = atom(null, (_get, set, cat: CategoryTab) => {
+export const setActiveCategoryAtom = atom(null, (get, set, cat: CategoryTab) => {
+  closeComposeIfOpen(get, set);
   set(activeCategoryAtom, cat);
   set(selectedThreadIdAtom, null);
 });
 
-export const setSidebarViewAtom = atom(null, (_get, set, view: SidebarView | string) => {
+export const setSidebarViewAtom = atom(null, (get, set, view: SidebarView | string) => {
+  closeComposeIfOpen(get, set);
   set(activeSidebarViewAtom, view);
   set(activeAliasFilterAtom, null);
   set(selectedThreadIdAtom, null);
 });
 
-export const setAliasFilterAtom = atom(null, (_get, set, alias: string | null) => {
+export const setAliasFilterAtom = atom(null, (get, set, alias: string | null) => {
+  closeComposeIfOpen(get, set);
   set(activeAliasFilterAtom, alias);
   set(selectedThreadIdAtom, null);
 });
 
 export const setActiveAccountAtom = atom(null, (get, set, id: string | null) => {
-  // Save and close compose if open
-  const compose = get(composeOpenAtom);
-  if (compose) {
-    const hasContent = compose.to.length > 0 || compose.subject || compose.body;
-    if (hasContent) {
-      // Fire save before clearing — saveDraftAtom reads composeOpenAtom
-      set(saveDraftAtom);
-    }
-    set(composeOpenAtom, null);
-  }
+  closeComposeIfOpen(get, set);
   set(activeAccountIdAtom, id);
   set(activeAliasFilterAtom, null);
   set(activeSidebarViewAtom, 'inbox');
