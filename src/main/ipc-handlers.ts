@@ -171,6 +171,7 @@ export function registerIpcHandlers(): void {
   // ── Tasks (write operations) ──
 
   ipcMain.handle('task:queue', (_event, { accountId, task }) => {
+    log.info(`[task:queue] received ${task.type} for ${accountId} (has draft: ${!!task.draft}, body length: ${task.draft?.body?.length ?? 'n/a'})`);
     // Inject drafts folder info for draft tasks so mailsync can link the message to a folder
     if ((task.type === 'SyncbackDraftTask' || task.type === 'SendDraftTask') && task.draft && !task.draft.folder) {
       const draftsFolder = database.getFolderByRole(accountId, 'drafts');

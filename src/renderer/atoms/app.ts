@@ -339,12 +339,36 @@ export const accountUnreadCountsAtom = atom<Map<string, number>>(new Map());
 
 // ── Write atoms (actions) ──
 
-/** Save draft (if any content) and close compose. Used by navigation actions. */
+/** Save draft (if any content) and close compose. Used by navigation actions.
+ *  Inlines the save logic because set(saveDraftAtom) from another write atom
+ *  may not reliably invoke the async write function in all Jotai versions. */
 function closeComposeIfOpen(get: any, set: any): void {
-  const compose = get(composeOpenAtom);
+  const compose = get(composeOpenAtom) as ComposeState | null;
   if (!compose) return;
   const hasContent = compose.to.length > 0 || compose.subject || compose.body;
-  if (hasContent) set(saveDraftAtom);
+  if (hasContent && window.api) {
+    const acctId = compose.accountId || (get(accountsAtom) as Account[])[0]?.id;
+    if (acctId) {
+      const draftId = compose.draftId || `local-draft-${Date.now()}`;
+      const headerMessageId = compose.draftHeaderId || `<${Date.now()}.${Math.random().toString(36).slice(2)}@mailspring.com>`;
+      window.api.queueTask(acctId, {
+        type: 'SyncbackDraftTask',
+        draft: {
+          id: draftId,
+          headerMessageId,
+          to: compose.to,
+          cc: compose.cc,
+          bcc: compose.bcc,
+          from: compose.fromEmail ? [{ name: '', email: compose.fromEmail }] : [],
+          subject: compose.subject,
+          body: compose.body,
+          threadId: compose.threadId,
+          replyToHeaderId: compose.replyToMessageId,
+          version: 1,
+        },
+      }).catch((err: any) => console.error('[closeCompose] draft save failed:', err));
+    }
+  }
   set(composeOpenAtom, null);
 }
 
