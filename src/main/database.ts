@@ -516,6 +516,23 @@ export function getFilePath(fileId: string): string | null {
   }
 }
 
+/** Look up a folder/label by role for an account (e.g., 'drafts', 'sent', 'inbox') */
+export function getFolderByRole(accountId: string, role: string): { id: string; path: string; role: string } | null {
+  if (!db) return null;
+  for (const table of ['Label', 'Folder']) {
+    try {
+      const row = db.prepare(
+        `SELECT id, data FROM ${table} WHERE json_extract(data, '$.role') = ? AND json_extract(data, '$.aid') = ? LIMIT 1`
+      ).get(role, accountId) as { id: string; data: string } | undefined;
+      if (row) {
+        const d = JSON.parse(row.data);
+        return { id: d.id, path: d.path || '', role: d.role || role };
+      }
+    } catch { /* table might not exist */ }
+  }
+  return null;
+}
+
 // ── Category queries ──
 
 export interface DbCategory {

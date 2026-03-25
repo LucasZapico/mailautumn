@@ -525,6 +525,14 @@ function serializeTask(accountId: string, task: Record<string, any>): Record<str
           file_ids: [],
           threadId: task.draft.threadId || undefined,
           irtMsgId: task.draft.replyToHeaderId || undefined,
+          folder: task.draft.folder ? {
+            __cls: 'Folder',
+            id: task.draft.folder.id,
+            aid: accountId,
+            role: task.draft.folder.role || 'drafts',
+            path: task.draft.folder.path || '[Gmail]/Drafts',
+            v: 1,
+          } : undefined,
         };
         base.headerMessageId = base.draft.hMsgId;
       }
