@@ -692,9 +692,20 @@ export const setAliasFilterAtom = atom(null, (_get, set, alias: string | null) =
   set(selectedThreadIdAtom, null);
 });
 
-export const setActiveAccountAtom = atom(null, (_get, set, id: string | null) => {
+export const setActiveAccountAtom = atom(null, (get, set, id: string | null) => {
+  // Save and close compose if open
+  const compose = get(composeOpenAtom);
+  if (compose) {
+    const hasContent = compose.to.length > 0 || compose.subject || compose.body;
+    if (hasContent) {
+      // Fire save before clearing — saveDraftAtom reads composeOpenAtom
+      set(saveDraftAtom);
+    }
+    set(composeOpenAtom, null);
+  }
   set(activeAccountIdAtom, id);
   set(activeAliasFilterAtom, null);
+  set(activeSidebarViewAtom, 'inbox');
   set(selectedThreadIdAtom, null);
 });
 
