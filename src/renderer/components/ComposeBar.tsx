@@ -238,6 +238,7 @@ export default function ComposeBar({ thread, onGrow }: { thread: Thread; onGrow?
                 <button
                   key={t.id}
                   onClick={() => setAiTone(t.id)}
+                  title={`${t.label} tone`}
                   className={`px-2 py-0.5 rounded-full text-xxs transition-colors cursor-pointer ${
                     aiTone === t.id
                       ? 'bg-accent/15 text-accent font-medium'
@@ -263,6 +264,7 @@ export default function ComposeBar({ thread, onGrow }: { thread: Thread; onGrow?
                 onClick={handleAIDraft}
                 disabled={aiLoading}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-accent text-accent-text text-xs font-medium hover:bg-accent-hover transition-colors disabled:opacity-60 cursor-pointer disabled:cursor-default shrink-0"
+                title="Generate AI draft"
               >
                 <IoSparklesOutline size={12} />
                 {aiLoading ? 'Writing...' : 'Generate'}
@@ -309,6 +311,7 @@ export default function ComposeBar({ thread, onGrow }: { thread: Thread; onGrow?
               onClick={handleSend}
               disabled={!canSend}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-accent text-accent-text text-xs font-medium hover:bg-accent-hover transition-colors disabled:opacity-40 cursor-pointer disabled:cursor-default"
+              title="Send reply (Ctrl+Enter)"
             >
               <IoSendOutline size={12} />
               {sending ? 'Sending...' : 'Send'}

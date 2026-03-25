@@ -145,7 +145,7 @@ const ThreadItem = memo(function ThreadItem({ thread, myEmails }: { thread: Thre
             : <IoPinOutline size={isCompact ? 12 : 14} className="text-text-tertiary" />
           }
         </button>
-        <button onClick={e => { e.stopPropagation(); toggleStar(thread.id); }} className="p-1 rounded hover:bg-bg-active cursor-pointer">
+        <button onClick={e => { e.stopPropagation(); toggleStar(thread.id); }} className="p-1 rounded hover:bg-bg-active cursor-pointer" title={thread.starred ? 'Unstar' : 'Star'}>
           {thread.starred
             ? <IoStar size={isCompact ? 12 : 14} className="text-yellow" />
             : <IoStarOutline size={isCompact ? 12 : 14} className="text-text-tertiary" />

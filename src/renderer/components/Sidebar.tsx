@@ -38,6 +38,7 @@ function SidebarItem({ name, icon: Icon, active, count, indent, onClick }: Sideb
   return (
     <button
       onClick={onClick}
+      title={name}
       className={`flex items-center gap-2.5 py-1.5 mx-1 rounded-md text-sm transition-colors cursor-pointer ${
         indent ? 'pl-7 pr-3' : 'px-3'
       } ${
