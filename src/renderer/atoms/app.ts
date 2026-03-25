@@ -57,6 +57,23 @@ export type SyncStatus = 'starting' | 'connected' | 'syncing' | 'idle' | 'error'
 /** Map of accountId → { status, error?, lastActivity } */
 export const syncStatusMapAtom = atom<Map<string, { status: SyncStatus; error?: string; lastActivity: number }>>(new Map());
 
+// ── AI connection status ──
+
+export type AIConnectionStatus = 'unchecked' | 'checking' | 'connected' | 'error' | 'disabled';
+
+export const aiStatusAtom = atom<{ status: AIConnectionStatus; error?: string }>({ status: 'unchecked' });
+
+export const checkAIConnectionAtom = atom(null, async (_get, set) => {
+  if (!window.api?.checkAIConnection) return;
+  set(aiStatusAtom, { status: 'checking' });
+  try {
+    const result = await window.api.checkAIConnection();
+    set(aiStatusAtom, { status: result.status as AIConnectionStatus, error: result.error });
+  } catch {
+    set(aiStatusAtom, { status: 'error', error: 'Connection check failed' });
+  }
+});
+
 /** Update sync status for one account. 'syncing' auto-decays to 'idle' after 3s of no deltas. */
 export const updateSyncStatusAtom = atom(null, (get, set, update: { accountId: string; status: SyncStatus; error?: string }) => {
   const map = new Map(get(syncStatusMapAtom));
@@ -146,9 +163,82 @@ export interface ComposeState {
   body: string;
   fromEmail?: string;
   accountId?: string;
+  /** ID of the saved draft message (for updating/deleting) */
+  draftId?: string;
+  /** Header Message-ID of the draft */
+  draftHeaderId?: string;
 }
 
 export const composeOpenAtom = atom<ComposeState | null>(null);
+
+/** Save current compose state as a draft via mailsync */
+export const saveDraftAtom = atom(null, async (get, set) => {
+  const compose = get(composeOpenAtom);
+  if (!compose || !window.api) return;
+
+  const accountId = compose.accountId || get(accountsAtom)[0]?.id;
+  if (!accountId) return;
+
+  const draftId = compose.draftId || `local-draft-${Date.now()}`;
+  const headerMessageId = compose.draftHeaderId || `<${Date.now()}.${Math.random().toString(36).slice(2)}@mailspring.com>`;
+
+  await window.api.queueTask(accountId, {
+    type: 'SyncbackDraftTask',
+    draft: {
+      id: draftId,
+      headerMessageId,
+      to: compose.to,
+      cc: compose.cc,
+      bcc: compose.bcc,
+      from: compose.fromEmail ? [{ name: '', email: compose.fromEmail }] : [],
+      subject: compose.subject,
+      body: compose.body,
+      threadId: compose.threadId,
+      replyToHeaderId: compose.replyToMessageId,
+      version: 1,
+    },
+  });
+
+  // Update compose state with draft IDs so subsequent saves update the same draft
+  set(composeOpenAtom, { ...compose, draftId, draftHeaderId: headerMessageId });
+});
+
+/** Delete the current draft (on send or discard) */
+export const destroyDraftAtom = atom(null, async (get) => {
+  const compose = get(composeOpenAtom);
+  if (!compose?.draftId || !window.api) return;
+
+  const accountId = compose.accountId || get(accountsAtom)[0]?.id;
+  if (!accountId) return;
+
+  await window.api.queueTask(accountId, {
+    type: 'DestroyDraftTask',
+    messageIds: [compose.draftId],
+  });
+});
+
+/** Open a draft message for editing in the compose window */
+export const openDraftAtom = atom(null, async (get, set, message: Message) => {
+  if (!message.draft) return;
+
+  const thread = get(threadsAtom).find(t => t.id === message.threadId);
+  const accountId = thread?.accountId || get(accountsAtom)[0]?.id;
+
+  set(composeOpenAtom, {
+    mode: message.threadId && thread?.messages && thread.messages.length > 1 ? 'reply' : 'new',
+    threadId: message.threadId,
+    replyToMessageId: message.headerMessageId,
+    to: message.to?.map(c => ({ name: c.name, email: c.email })) || [],
+    cc: message.cc?.map(c => ({ name: c.name, email: c.email })) || [],
+    bcc: [],
+    subject: message.subject,
+    body: message.body || '',
+    fromEmail: message.from?.email,
+    accountId,
+    draftId: message.id,
+    draftHeaderId: message.headerMessageId,
+  });
+});
 
 // ── Undo Send ──
 
@@ -706,7 +796,7 @@ export const loadThreadsAtom = atom(null, async (get, set) => {
 
 /** Load messages for a thread */
 export const loadMessagesAtom = atom(null, async (get, set, threadId: string) => {
-  if (!window.api) return;
+  if (!window.api) return [];
   try {
     const dbMessages = await window.api.getMessages(threadId);
     const messages: Message[] = dbMessages.map((m: any) => ({
@@ -729,8 +819,10 @@ export const loadMessagesAtom = atom(null, async (get, set, threadId: string) =>
     set(threadsAtom, get(threadsAtom).map(t =>
       t.id === threadId ? { ...t, messages } : t
     ));
+    return messages;
   } catch {
     // message load failed — will retry on thread select
+    return [];
   }
 });
 

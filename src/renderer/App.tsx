@@ -23,8 +23,9 @@ import {
   dbReadyAtom, addingAccountAtom, loadCategoriesAtom, loadPinnedIdsAtom, isOptimisticWindow,
   updateSyncStatusAtom, activeSidebarViewAtom, composeOpenAtom,
   activeAccountIdAtom, syncStatusMapAtom, accountsAtom,
+  openDraftAtom, selectThreadAtom, aiStatusAtom, checkAIConnectionAtom,
 } from './atoms/app';
-import type { SyncStatus } from './atoms/app';
+import type { SyncStatus, AIConnectionStatus } from './atoms/app';
 
 function FeedView({ category }: { category: string }) {
   switch (category) {
@@ -100,6 +101,7 @@ function SyncErrorBanner() {
             onClick={() => handleRetry(accountId)}
             disabled={retrying.has(accountId)}
             className="flex items-center gap-1 px-2 py-1 rounded-md text-xxs font-medium text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer disabled:opacity-50"
+            title="Retry sync"
           >
             <IoRefreshOutline size={11} className={retrying.has(accountId) ? 'animate-spin' : ''} />
             Retry
@@ -107,6 +109,7 @@ function SyncErrorBanner() {
           <button
             onClick={() => handleDismiss(error)}
             className="p-0.5 rounded text-red-400/50 hover:text-red-400 transition-colors cursor-pointer"
+            title="Dismiss"
           >
             <IoCloseOutline size={12} />
           </button>
@@ -130,6 +133,8 @@ function MailApp() {
   const loadMessages = useSetAtom(loadMessagesAtom);
   const loadCategories = useSetAtom(loadCategoriesAtom);
   const loadPinnedIds = useSetAtom(loadPinnedIdsAtom);
+  const openDraft = useSetAtom(openDraftAtom);
+  const selectThread = useSetAtom(selectThreadAtom);
   const updateSyncStatus = useSetAtom(updateSyncStatusAtom);
   const showFullMessage = viewMode === 'list' && selectedThreadId !== null;
   const isFeedView = feedCategories.has(activeCategory);
@@ -144,11 +149,19 @@ function MailApp() {
   }, [dbReady, activeCategory, sidebarView, activeAccountId, loadThreads, loadCategories, loadPinnedIds]);
 
   // Load messages when a thread is selected
+  // If the thread is a draft, open it in compose instead
   useEffect(() => {
     if (selectedThreadId && dbReady) {
-      loadMessages(selectedThreadId);
+      loadMessages(selectedThreadId).then((messages) => {
+        if (!messages?.length) return;
+        const lastMsg = messages[messages.length - 1];
+        if (lastMsg?.draft) {
+          openDraft(lastMsg);
+          selectThread(null);
+        }
+      });
     }
-  }, [selectedThreadId, dbReady, loadMessages]);
+  }, [selectedThreadId, dbReady, loadMessages, openDraft, selectThread]);
 
   // Listen for sync deltas to refresh data (debounced)
   // Mailsync sends rapid bursts of deltas during sync — without debouncing,
@@ -197,6 +210,19 @@ function MailApp() {
     });
     return () => { unsub(); };
   }, [debouncedLoadThreads]);
+
+  // Listen for AI connection status from main process + check on mount
+  const setAIStatus = useSetAtom(aiStatusAtom);
+  const checkAI = useSetAtom(checkAIConnectionAtom);
+  useEffect(() => {
+    // Proactively check on mount (the startup push may have fired before we mounted)
+    checkAI();
+    if (!window.api?.onAIStatus) return;
+    const unsub = window.api.onAIStatus((data: { status: string; error?: string }) => {
+      setAIStatus({ status: data.status as AIConnectionStatus, error: data.error });
+    });
+    return () => { unsub(); };
+  }, [setAIStatus, checkAI]);
 
   return (
     <div className="flex h-screen overflow-hidden">
