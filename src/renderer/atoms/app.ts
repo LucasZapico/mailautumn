@@ -200,7 +200,10 @@ export const saveDraftAtom = atom(null, async (get, set) => {
   });
 
   // Update compose state with draft IDs so subsequent saves update the same draft
-  set(composeOpenAtom, { ...compose, draftId, draftHeaderId: headerMessageId });
+  // (only if compose is still open — it may have been closed during the async save)
+  if (get(composeOpenAtom)) {
+    set(composeOpenAtom, { ...compose, draftId, draftHeaderId: headerMessageId });
+  }
 });
 
 /** Delete the current draft (on send or discard) */
