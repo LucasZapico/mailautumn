@@ -7,13 +7,14 @@ import {
   IoChevronDown, IoPinOutline, IoPin, IoSparklesOutline,
   IoCalendarOutline, IoCheckmarkCircleOutline, IoChevronUp,
   IoSwapHorizontalOutline, IoDocumentOutline, IoImageOutline,
-  IoDownloadOutline,
+  IoDownloadOutline, IoCopyOutline, IoCreateOutline,
 } from 'react-icons/io5';
 import {
   selectedThreadIdAtom, selectedThreadAtom, selectThreadAtom,
   filteredThreadsAtom, viewModeAtom, goBackToListAtom, densityConfigAtom,
   toggleStarAtom, archiveThreadAtom, trashThreadAtom, markUnreadAtom, togglePinAtom,
   setThreadTypeAtom, setDomainTypeAtom, crmPanelExpandedAtom,
+  composeOpenAtom, accountEmailsAtom,
 } from '../atoms/app';
 import type { Message, Thread } from '../data/types';
 import { themeModeAtom } from '../atoms/theme';
@@ -116,6 +117,7 @@ function AttachmentPreview({ attachment }: { attachment: { id: string; filename:
         <button
           onClick={() => setCollapsed(!collapsed)}
           className="p-0.5 rounded hover:bg-bg-hover cursor-pointer text-text-tertiary"
+          title={collapsed ? 'Expand preview' : 'Collapse preview'}
         >
           {collapsed ? <IoChevronDown size={12} /> : <IoChevronUp size={12} />}
         </button>
@@ -223,7 +225,7 @@ const MessageItem = memo(function MessageItem({ message, grouped, extraction, us
     .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '');
 
   const extracted = extraction?.html ?? sanitize(message.body);
-  const wasStripped = extraction ? extraction.html !== message.body : false;
+  const wasStripped = extraction?.stripped ?? false;
   const displayBody = expanded ? sanitize(message.body) : extracted;
 
   const attachments = message.attachments;
@@ -272,13 +274,13 @@ const MessageItem = memo(function MessageItem({ message, grouped, extraction, us
             {bodyEl}
           </div>
           <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto transition-opacity">
-            <button className="p-1.5 rounded-md hover:bg-bg-active cursor-pointer">
+            <button className="p-1.5 rounded-md hover:bg-bg-active cursor-pointer" title="Reply">
               <IoArrowUndoOutline size={14} className="text-text-tertiary" />
             </button>
-            <button className="p-1.5 rounded-md hover:bg-bg-active cursor-pointer">
+            <button className="p-1.5 rounded-md hover:bg-bg-active cursor-pointer" title="Forward">
               <IoArrowRedoOutline size={14} className="text-text-tertiary" />
             </button>
-            <button className="p-1.5 rounded-md hover:bg-bg-active cursor-pointer">
+            <button className="p-1.5 rounded-md hover:bg-bg-active cursor-pointer" title="More">
               <IoEllipsisHorizontal size={14} className="text-text-tertiary" />
             </button>
           </div>
@@ -355,6 +357,87 @@ const moveToTypes: { type: string; label: string }[] = [
   { type: 'marketing', label: 'Promo' },
 ];
 
+function ParticipantPanel({ thread }: { thread: Thread }) {
+  const myEmails = useAtomValue(accountEmailsAtom);
+  const setCompose = useSetAtom(composeOpenAtom);
+  const { show } = useContextMenu();
+
+  const handleCopy = (email: string) => {
+    navigator.clipboard.writeText(email).catch(err => console.error('[ParticipantPanel] copy failed', err));
+  };
+
+  const handleCompose = (contact: { name: string; email: string }) => {
+    setCompose({
+      mode: 'new',
+      to: [{ name: contact.name, email: contact.email }],
+      cc: [],
+      bcc: [],
+      subject: '',
+      body: '',
+      accountId: thread.accountId,
+    });
+  };
+
+  const handleContextMenu = (e: React.MouseEvent, contact: { name: string; email: string }, isMe: boolean) => {
+    e.preventDefault();
+    const items: any[] = [
+      { label: 'Copy Email', icon: <IoCopyOutline size={14} />, onClick: () => handleCopy(contact.email) },
+    ];
+    if (contact.name) {
+      items.push({ label: 'Copy Name', icon: <IoCopyOutline size={14} />, onClick: () => navigator.clipboard.writeText(contact.name) });
+    }
+    if (!isMe) {
+      items.push({ separator: true as const });
+      items.push({ label: 'New Email', icon: <IoCreateOutline size={14} />, onClick: () => handleCompose(contact) });
+    }
+    show(e.clientX, e.clientY, items);
+  };
+
+  return (
+    <div className="px-5 py-2 border-b border-border-secondary bg-bg-secondary/30 space-y-0.5">
+      {thread.participants.map(p => {
+        const isMe = myEmails.has(p.email.toLowerCase());
+        return (
+          <div
+            key={p.email}
+            className="flex items-center gap-2.5 py-1 px-2 -mx-2 rounded-lg hover:bg-bg-hover/50 group"
+            onContextMenu={e => handleContextMenu(e, p, isMe)}
+          >
+            <Avatar contact={p} size={24} className="shrink-0" />
+            <div className="flex-1 min-w-0 flex items-center gap-2">
+              <span className="text-xs font-medium text-text-primary truncate">
+                {p.name || p.email}
+                {isMe && <span className="ml-1.5 text-2xs font-normal text-text-tertiary">you</span>}
+              </span>
+              {p.name && (
+                <span className="text-2xs text-text-tertiary truncate hidden sm:inline">{p.email}</span>
+              )}
+            </div>
+            <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+              <button
+                onClick={() => handleCopy(p.email)}
+                className="p-1 rounded-md text-text-tertiary hover:text-text-primary hover:bg-bg-active cursor-pointer"
+                title="Copy email"
+              >
+                <IoCopyOutline size={13} />
+              </button>
+              {!isMe && (
+                <button
+                  onClick={() => handleCompose(p)}
+                  className="p-1 rounded-md text-text-tertiary hover:text-text-primary hover:bg-bg-active cursor-pointer"
+                  title="New email"
+                >
+                  <IoCreateOutline size={13} />
+                </button>
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function ThreadHeader({ thread, position, total, onPrev, onNext }: {
   thread: Thread; position: number; total: number;
   onPrev: (() => void) | null; onNext: (() => void) | null;
@@ -369,6 +452,7 @@ function ThreadHeader({ thread, position, total, onPrev, onNext }: {
   const setThreadType = useSetAtom(setThreadTypeAtom);
   const setDomainType = useSetAtom(setDomainTypeAtom);
   const { show } = useContextMenu();
+  const [participantsOpen, setParticipantsOpen] = useState(false);
 
   const senderDomain = (thread.participants[0]?.email || '').split('@')[1] || '';
 
@@ -417,10 +501,10 @@ function ThreadHeader({ thread, position, total, onPrev, onNext }: {
     ]);
   };
 
-  return (
+  return (<>
     <div className="flex items-center gap-3 px-5 py-3 border-b border-border-secondary shrink-0">
       {viewMode === 'list' && (
-        <button onClick={() => goBackToList()} className="p-1.5 -ml-1 rounded-md text-text-tertiary hover:text-text-primary hover:bg-bg-hover cursor-pointer">
+        <button onClick={() => goBackToList()} className="p-1.5 -ml-1 rounded-md text-text-tertiary hover:text-text-primary hover:bg-bg-hover cursor-pointer" title="Back to list">
           <IoArrowBackOutline size={16} />
         </button>
       )}
@@ -430,19 +514,26 @@ function ThreadHeader({ thread, position, total, onPrev, onNext }: {
           <h2 className="text-sm font-semibold text-text-primary truncate">{thread.subject}</h2>
           <TypeChipDropdown thread={thread} />
         </div>
-        <div className="text-xs text-text-tertiary mt-0.5">
-          {thread.participants.map(p => p.name).join(', ')} &middot; {thread.messageCount} message{thread.messageCount !== 1 ? 's' : ''}
-        </div>
+        <button
+          onClick={() => setParticipantsOpen(!participantsOpen)}
+          className="flex items-center gap-1 max-w-full text-xs text-text-tertiary mt-0.5 hover:text-text-secondary cursor-pointer"
+          title={participantsOpen ? 'Hide participants' : 'Show participants'}
+        >
+          <span className="truncate min-w-0">
+            {thread.participants.map(p => p.name || p.email).join(', ')} &middot; {thread.messageCount} message{thread.messageCount !== 1 ? 's' : ''}
+          </span>
+          {participantsOpen ? <IoChevronUp size={11} className="shrink-0" /> : <IoChevronDown size={11} className="shrink-0" />}
+        </button>
       </div>
       <div className="flex items-center gap-1">
         {/* Prev/Next */}
         <div className="flex items-center gap-0.5 mr-1">
           <span className="text-xxs text-text-tertiary tabular-nums mr-1">{position} / {total}</span>
-          <button onClick={onPrev ?? undefined} disabled={!onPrev}
+          <button onClick={onPrev ?? undefined} disabled={!onPrev} title="Previous"
             className="p-1 rounded-md text-text-tertiary hover:text-text-primary hover:bg-bg-hover disabled:opacity-30 disabled:cursor-default cursor-pointer transition-colors">
             <IoChevronUpOutline size={16} />
           </button>
-          <button onClick={onNext ?? undefined} disabled={!onNext}
+          <button onClick={onNext ?? undefined} disabled={!onNext} title="Next"
             className="p-1 rounded-md text-text-tertiary hover:text-text-primary hover:bg-bg-hover disabled:opacity-30 disabled:cursor-default cursor-pointer transition-colors">
             <IoChevronDownOutline size={16} />
           </button>
@@ -468,6 +559,8 @@ function ThreadHeader({ thread, position, total, onPrev, onNext }: {
         </button>
       </div>
     </div>
+    {participantsOpen && <ParticipantPanel thread={thread} />}
+  </>
   );
 }
 
