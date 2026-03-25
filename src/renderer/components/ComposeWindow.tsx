@@ -343,19 +343,12 @@ export default function ComposeWindow() {
     }
   }, [compose?.mode, editor]);
 
-  // Save draft when navigating away (compose set to null by external action)
-  const composeRef = useRef(compose);
-  composeRef.current = compose;
+  // Clear pending auto-save timer on unmount
   useEffect(() => {
     return () => {
       if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
-      // If compose still has content when unmounting, save it
-      const c = composeRef.current;
-      if (c && (c.to.length > 0 || c.subject || c.body)) {
-        saveDraft();
-      }
     };
-  }, [saveDraft]);
+  }, []);
 
   if (!compose) return null;
 
@@ -489,6 +482,14 @@ export default function ComposeWindow() {
 
   handleSendRef.current = handleSend;
 
+  const handleClose = () => {
+    if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
+    // Save draft before closing (saveDraftAtom reads composeOpenAtom, so call before nulling)
+    const hasContent = compose && (compose.to.length > 0 || compose.subject || compose.body);
+    if (hasContent) saveDraft();
+    setCompose(null);
+  };
+
   const handleDiscard = () => {
     if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
     if (compose?.draftId) destroyDraft();
@@ -499,7 +500,7 @@ export default function ComposeWindow() {
     <div className="flex-1 flex flex-col bg-bg-primary min-w-0">
       {/* Header */}
       <div className="flex items-center gap-3 px-5 py-3 border-b border-border-secondary shrink-0">
-        <button onClick={handleDiscard} className="p-1.5 -ml-1 rounded-md text-text-tertiary hover:text-text-primary hover:bg-bg-hover cursor-pointer">
+        <button onClick={handleClose} className="p-1.5 -ml-1 rounded-md text-text-tertiary hover:text-text-primary hover:bg-bg-hover cursor-pointer" title="Save draft and close">
           <IoArrowBackOutline size={16} />
         </button>
         <div className="flex-1 min-w-0">
@@ -509,7 +510,8 @@ export default function ComposeWindow() {
         </div>
         <button
           onClick={handleDiscard}
-          className="px-3 py-1.5 rounded-md text-xs text-text-tertiary hover:text-text-secondary hover:bg-bg-hover transition-colors cursor-pointer"
+          className="px-3 py-1.5 rounded-md text-xs text-text-tertiary hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer"
+          title="Delete draft permanently"
         >
           Discard
         </button>
