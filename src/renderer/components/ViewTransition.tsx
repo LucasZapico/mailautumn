@@ -18,16 +18,16 @@ export default function ViewTransition({ viewKey, children, className = '' }: {
   const [animating, setAnimating] = useState(false);
   const [phase, setPhase] = useState<'in' | 'out'>('in');
   const prevKey = useRef(viewKey);
+  const childrenRef = useRef(children);
+  childrenRef.current = children;
 
+  // Animate only on viewKey changes — children ref ensures we swap in the latest content
   useEffect(() => {
-    if (viewKey === prevKey.current) {
-      setDisplay(children);
-      return;
-    }
+    if (viewKey === prevKey.current) return;
     prevKey.current = viewKey;
 
     if (duration === 0) {
-      setDisplay(children);
+      setDisplay(childrenRef.current);
       return;
     }
 
@@ -37,7 +37,7 @@ export default function ViewTransition({ viewKey, children, className = '' }: {
 
     const fadeOutTimer = setTimeout(() => {
       // Phase 2: swap content and fade in
-      setDisplay(children);
+      setDisplay(childrenRef.current);
       setPhase('in');
 
       const fadeInTimer = setTimeout(() => {
@@ -48,9 +48,9 @@ export default function ViewTransition({ viewKey, children, className = '' }: {
     }, duration);
 
     return () => clearTimeout(fadeOutTimer);
-  }, [viewKey, children, duration]);
+  }, [viewKey, duration]);
 
-  // Update content when children change within the same viewKey
+  // Update content when children change within the same viewKey (only when not animating)
   useEffect(() => {
     if (!animating) setDisplay(children);
   }, [children, animating]);
