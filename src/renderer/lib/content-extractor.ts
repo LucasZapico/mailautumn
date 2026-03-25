@@ -74,8 +74,8 @@ function stripInlineColors(root: Element): void {
     // Remove color, background-color, and background properties
     // Preserve background values that contain url() (layout images)
     const cleaned = style
-      .replace(/\b(color)\s*:\s*[^;]+;?/gi, '')
-      .replace(/\b(background-color)\s*:\s*[^;]+;?/gi, '')
+      .replace(/(?<![\w-])color\s*:\s*[^;]+;?/gi, '')
+      .replace(/\bbackground-color\s*:\s*[^;]+;?/gi, '')
       .replace(/\b(background)\s*:\s*([^;]+);?/gi, (m, _prop, val) =>
         val.includes('url(') ? m : '')
       .replace(/\b(background-image)\s*:\s*([^;]+);?/gi, (m, _prop, val) =>
@@ -179,6 +179,8 @@ function getDirectText(el: Element): string {
 export interface ExtractionResult {
   html: string;
   confidence: number;
+  /** True when quotes, signatures, or duplicate content was actually removed */
+  stripped: boolean;
 }
 
 /**
@@ -187,7 +189,7 @@ export interface ExtractionResult {
  */
 export function extractContent(html: string): ExtractionResult {
   if (!html?.trim() || !parser) {
-    return { html: html || '', confidence: 1 };
+    return { html: html || '', confidence: 1, stripped: false };
   }
 
   // Strip <style> and <script> tags before parsing to prevent CSS/JS leaking into the app
@@ -374,12 +376,11 @@ export function extractContent(html: string): ExtractionResult {
 
   const result = root.innerHTML.trim();
   if (!result || result === '&nbsp;') {
-    // Extraction removed everything — return color-stripped original
-    stripInlineColors(doc.getElementById('root')!); // re-parse needed? no, root is mutated
-    return { html, confidence: 0.3 };
+    // Extraction removed everything — return original body unchanged
+    return { html, confidence: 0.3, stripped: false };
   }
 
-  return { html: result, confidence: removedQuote ? 0.85 : 0.5 };
+  return { html: result, confidence: removedQuote ? 0.85 : 0.5, stripped: removedQuote };
 }
 
 /**
@@ -392,57 +393,64 @@ export function extractForThread(
   messages: { id: string; body: string }[],
 ): Map<string, ExtractionResult> {
   const results = new Map<string, ExtractionResult>();
-  const previousTexts: string[] = []; // normalized text of previous messages
+  const previousTexts: string[] = []; // normalized text content of previous messages
 
   for (const msg of messages) {
     // First pass: standard extraction
     const extracted = extractContent(msg.body);
+    let textForDedup = '';
 
-    // Second pass: deduplicate against previous messages
-    if (previousTexts.length > 0 && parser) {
+    if (parser) {
       const doc = parser.parseFromString(`<div id="root">${extracted.html}</div>`, 'text/html');
       const root = doc.getElementById('root')!;
-      let deduped = false;
+      textForDedup = root.textContent || '';
 
-      // Walk block-level children and check for duplicates
-      const blocks = Array.from(root.children);
-      // Work backwards — quoted content is typically at the bottom
-      for (let i = blocks.length - 1; i >= 0; i--) {
-        const blockText = normalize(blocks[i].textContent || '');
-        if (blockText.length < 20) continue; // skip tiny elements
+      // Second pass: deduplicate against previous messages
+      if (previousTexts.length > 0) {
+        let deduped = false;
 
-        // Check if this block's text appears in any previous message
-        const isDuplicate = previousTexts.some(prev => {
-          // Check if the block is a substantial substring of a previous message
-          return prev.includes(blockText) && blockText.length > 30;
-        });
+        // Walk block-level children and check for duplicates
+        const blocks = Array.from(root.children);
+        // Work backwards — quoted content is typically at the bottom
+        for (let i = blocks.length - 1; i >= 0; i--) {
+          const blockText = normalize(blocks[i].textContent || '');
+          if (blockText.length < 20) continue; // skip tiny elements
 
-        if (isDuplicate) {
-          // Remove this block and everything after it
-          for (let j = blocks.length - 1; j >= i; j--) {
-            blocks[j].remove();
+          // Check if this block's text appears in any previous message
+          const isDuplicate = previousTexts.some(prev => {
+            // Check if the block is a substantial substring of a previous message
+            return prev.includes(blockText) && blockText.length > 30;
+          });
+
+          if (isDuplicate) {
+            // Remove this block and everything after it
+            for (let j = blocks.length - 1; j >= i; j--) {
+              blocks[j].remove();
+            }
+            deduped = true;
+            break;
           }
-          deduped = true;
-          break;
         }
-      }
 
-      if (deduped) {
-        // Clean trailing <br>
-        while (root.lastElementChild?.tagName === 'BR') {
-          root.lastElementChild.remove();
-        }
-        const html = root.innerHTML.trim();
-        if (html && html !== '&nbsp;') {
-          extracted.html = html;
-          extracted.confidence = 0.9;
+        if (deduped) {
+          // Clean trailing <br>
+          while (root.lastElementChild?.tagName === 'BR') {
+            root.lastElementChild.remove();
+          }
+          const html = root.innerHTML.trim();
+          if (html && html !== '&nbsp;') {
+            extracted.html = html;
+            extracted.confidence = 0.9;
+            extracted.stripped = true;
+            textForDedup = root.textContent || '';
+          }
         }
       }
     }
 
     results.set(msg.id, extracted);
-    // Add this message's normalized text for future dedup
-    previousTexts.push(normalize(extracted.html));
+    // Add this message's normalized text content (not HTML) for future dedup
+    previousTexts.push(normalize(textForDedup || extracted.html));
   }
 
   return results;
