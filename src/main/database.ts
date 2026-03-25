@@ -37,6 +37,7 @@ export function openDatabase(): boolean {
     db = new Database(dbPath, { timeout: 10000 });
     db.pragma('journal_mode = WAL');
     db.pragma('cache_size = 20000');
+    inboxLabelIds = null; // invalidate cache on reopen
     log.info(`Database opened: ${dbPath}`);
     return true;
   } catch (err) {
@@ -211,28 +212,32 @@ function parseThread(row: ThreadRow): DbThread {
   };
 }
 
-/** Get inbox label IDs (cached per session) */
+/** Get label IDs by role (cached per session) */
 let inboxLabelIds: string[] | null = null;
+
+function getLabelIdsByRole(...roles: string[]): string[] {
+  if (!db) return [];
+  const ids: string[] = [];
+  for (const table of ['Label', 'Folder']) {
+    try {
+      const placeholders = roles.map(() => '?').join(',');
+      const rows = db.prepare(
+        `SELECT id FROM ${table} WHERE json_extract(data, '$.role') IN (${placeholders})`
+      ).all(...roles) as { id: string }[];
+      for (const r of rows) ids.push(r.id);
+    } catch { /* table might not exist */ }
+  }
+  return ids;
+}
 
 function getInboxLabelIds(): string[] {
   if (inboxLabelIds) return inboxLabelIds;
-  if (!db) return [];
-  try {
-    const ids: string[] = [];
-    for (const table of ['Label', 'Folder']) {
-      try {
-        const rows = db.prepare(
-          `SELECT id FROM ${table} WHERE json_extract(data, '$.role') = 'inbox'`
-        ).all() as { id: string }[];
-        for (const r of rows) ids.push(r.id);
-      } catch { /* table might not exist */ }
-    }
-    inboxLabelIds = ids;
-    log.info(`Inbox label IDs: ${ids.join(', ')}`);
-    return ids;
-  } catch {
-    return [];
-  }
+  // Include both inbox and important — Gmail marks many inbox-worthy emails as
+  // Important without the INBOX label (Priority Inbox, tabbed categories, auto-archive).
+  // Without this, those emails are invisible in the default view.
+  inboxLabelIds = getLabelIdsByRole('inbox', 'important');
+  log.info(`Inbox label IDs (inbox+important): ${inboxLabelIds.join(', ')}`);
+  return inboxLabelIds;
 }
 
 export function getThreads(options: {
@@ -266,8 +271,8 @@ export function getThreads(options: {
     sql = `
       SELECT t.data, ${classifyColumns}
       FROM Thread t
-      INNER JOIN ThreadCategory tc ON tc.id = t.id
-      WHERE tc.value = ? AND t.inAllMail = 1
+      WHERE EXISTS (SELECT 1 FROM ThreadCategory tc WHERE tc.id = t.id AND tc.value = ?)
+        AND t.inAllMail = 1
     `;
     params.push(categoryId);
   } else {
@@ -277,8 +282,8 @@ export function getThreads(options: {
       sql = `
         SELECT t.data, ${classifyColumns}
         FROM Thread t
-        INNER JOIN ThreadCategory tc ON tc.id = t.id
-        WHERE tc.value IN (${placeholders}) AND t.inAllMail = 1
+        WHERE t.inAllMail = 1
+          AND EXISTS (SELECT 1 FROM ThreadCategory tc WHERE tc.id = t.id AND tc.value IN (${placeholders}))
       `;
       params.push(...inboxIds);
     } else {
