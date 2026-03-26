@@ -679,6 +679,28 @@ export const archiveThreadAtom = atom(null, async (get, set, threadId: string) =
   });
 });
 
+export const moveToInboxAtom = atom(null, async (get, set, threadId: string) => {
+  const thread = get(threadsAtom).find(t => t.id === threadId);
+  if (!thread || !window.api) return;
+  const categories = await ensureCategories(get, set);
+  const inboxLabel = findCategory(categories, thread.accountId, 'inbox');
+  const spamLabel = findCategory(categories, thread.accountId, 'spam');
+  if (!inboxLabel) return;
+  // Optimistic: remove from current list (spam/trash view)
+  markOptimistic();
+  navigateAfterAction(get, set, threadId);
+  set(threadsAtom, get(threadsAtom).filter(t => t.id !== threadId));
+  // Gmail: add inbox label, remove spam label
+  const messageIds = await getMessageIds(thread);
+  window.api.queueTask(thread.accountId, {
+    type: 'ChangeLabelsTask',
+    threadIds: [threadId],
+    messageIds,
+    labelsToAdd: [{ id: inboxLabel.id, role: 'inbox', path: 'INBOX' }],
+    labelsToRemove: spamLabel ? [{ id: spamLabel.id, role: 'spam', path: spamLabel.path }] : [],
+  }).catch(err => console.error('[moveToInbox] failed:', err));
+});
+
 export const trashThreadAtom = atom(null, async (get, set, threadId: string) => {
   const thread = get(threadsAtom).find(t => t.id === threadId);
   if (!thread || !window.api) return;

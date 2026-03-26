@@ -7,14 +7,14 @@ import {
   IoChevronDown, IoPinOutline, IoPin, IoSparklesOutline,
   IoCalendarOutline, IoCheckmarkCircleOutline, IoChevronUp,
   IoSwapHorizontalOutline, IoDocumentOutline, IoImageOutline,
-  IoDownloadOutline, IoCopyOutline, IoCreateOutline,
+  IoDownloadOutline, IoCopyOutline, IoCreateOutline, IoMailOutline,
 } from 'react-icons/io5';
 import {
   selectedThreadIdAtom, selectedThreadAtom, selectThreadAtom,
   filteredThreadsAtom, viewModeAtom, goBackToListAtom, densityConfigAtom,
   toggleStarAtom, archiveThreadAtom, trashThreadAtom, markUnreadAtom, togglePinAtom,
   setThreadTypeAtom, setDomainTypeAtom, crmPanelExpandedAtom,
-  composeOpenAtom, accountEmailsAtom,
+  composeOpenAtom, accountEmailsAtom, moveToInboxAtom, activeSidebarViewAtom,
 } from '../atoms/app';
 import type { Message, Thread } from '../data/types';
 import { themeModeAtom } from '../atoms/theme';
@@ -449,10 +449,13 @@ function ThreadHeader({ thread, position, total, onPrev, onNext }: {
   const archiveThread = useSetAtom(archiveThreadAtom);
   const trashThread = useSetAtom(trashThreadAtom);
   const markUnread = useSetAtom(markUnreadAtom);
+  const moveToInbox = useSetAtom(moveToInboxAtom);
   const setThreadType = useSetAtom(setThreadTypeAtom);
   const setDomainType = useSetAtom(setDomainTypeAtom);
+  const sidebarView = useAtomValue(activeSidebarViewAtom);
   const { show } = useContextMenu();
   const [participantsOpen, setParticipantsOpen] = useState(false);
+  const isSpamOrTrash = sidebarView === 'spam' || sidebarView === 'trash';
 
   const senderDomain = (thread.participants[0]?.email || '').split('@')[1] || '';
 
@@ -488,6 +491,11 @@ function ThreadHeader({ thread, position, total, onPrev, onNext }: {
           })),
       ] : []),
       { separator: true },
+      {
+        label: 'Move to Inbox',
+        icon: <IoMailOutline size={14} />,
+        onClick: () => moveToInbox(thread.id),
+      },
       {
         label: 'Archive',
         icon: <IoArchiveOutline size={14} />,
@@ -539,6 +547,12 @@ function ThreadHeader({ thread, position, total, onPrev, onNext }: {
           </button>
         </div>
         <div className="w-px h-5 bg-border-primary" />
+        {isSpamOrTrash && (
+          <button onClick={() => moveToInbox(thread.id)} className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium text-accent hover:bg-accent/10 cursor-pointer transition-colors" title="Move to Inbox">
+            <IoMailOutline size={14} />
+            <span>Not Spam</span>
+          </button>
+        )}
         <button onClick={() => togglePin(thread.id)} className={`p-1.5 rounded-md hover:bg-bg-hover cursor-pointer ${thread.pinned ? 'text-accent' : 'text-text-tertiary hover:text-text-primary'}`} title={thread.pinned ? 'Unpin' : 'Pin'}>
           {thread.pinned ? <IoPin size={16} /> : <IoPinOutline size={16} />}
         </button>
