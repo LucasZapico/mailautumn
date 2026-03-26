@@ -182,22 +182,28 @@ export const saveDraftAtom = atom(null, async (get, set) => {
   const draftId = compose.draftId || `local-draft-${Date.now()}`;
   const headerMessageId = compose.draftHeaderId || `<${Date.now()}.${Math.random().toString(36).slice(2)}@mailspring.com>`;
 
-  await window.api.queueTask(accountId, {
-    type: 'SyncbackDraftTask',
-    draft: {
-      id: draftId,
-      headerMessageId,
-      to: compose.to,
-      cc: compose.cc,
-      bcc: compose.bcc,
-      from: compose.fromEmail ? [{ name: '', email: compose.fromEmail }] : [],
-      subject: compose.subject,
-      body: compose.body,
-      threadId: compose.threadId,
-      replyToHeaderId: compose.replyToMessageId,
-      version: 1,
-    },
-  });
+  const draft: Record<string, any> = {
+    id: draftId,
+    headerMessageId,
+    to: compose.to,
+    cc: compose.cc,
+    bcc: compose.bcc,
+    from: compose.fromEmail ? [{ name: '', email: compose.fromEmail }] : [],
+    subject: compose.subject,
+    body: compose.body,
+    threadId: compose.threadId,
+    replyToHeaderId: compose.replyToMessageId,
+    version: 1,
+  };
+
+  // Include Drafts folder so mailsync links the message to a real folder
+  // (otherwise the sync loop deletes it as an "unlinked message")
+  try {
+    const folder = await window.api.getDraftsFolderId(accountId);
+    if (folder) draft.folder = folder;
+  } catch { /* folder lookup failed — save without it */ }
+
+  await window.api.queueTask(accountId, { type: 'SyncbackDraftTask', draft });
 
   // Update compose state with draft IDs so subsequent saves update the same draft
   // (only if compose is still open — it may have been closed during the async save)
@@ -340,8 +346,8 @@ export const accountUnreadCountsAtom = atom<Map<string, number>>(new Map());
 // ── Write atoms (actions) ──
 
 /** Save draft (if any content) and close compose. Used by navigation actions.
- *  Inlines the save logic because set(saveDraftAtom) from another write atom
- *  may not reliably invoke the async write function in all Jotai versions. */
+ *  Captures compose state synchronously, then fires async save (with folder lookup)
+ *  as fire-and-forget before closing compose. */
 function closeComposeIfOpen(get: any, set: any): void {
   const compose = get(composeOpenAtom) as ComposeState | null;
   if (!compose) return;
@@ -349,24 +355,32 @@ function closeComposeIfOpen(get: any, set: any): void {
   if (hasContent && window.api) {
     const acctId = compose.accountId || (get(accountsAtom) as Account[])[0]?.id;
     if (acctId) {
+      // Capture draft data synchronously, then do async folder lookup + save
       const draftId = compose.draftId || `local-draft-${Date.now()}`;
       const headerMessageId = compose.draftHeaderId || `<${Date.now()}.${Math.random().toString(36).slice(2)}@mailspring.com>`;
-      window.api.queueTask(acctId, {
-        type: 'SyncbackDraftTask',
-        draft: {
-          id: draftId,
-          headerMessageId,
-          to: compose.to,
-          cc: compose.cc,
-          bcc: compose.bcc,
-          from: compose.fromEmail ? [{ name: '', email: compose.fromEmail }] : [],
-          subject: compose.subject,
-          body: compose.body,
-          threadId: compose.threadId,
-          replyToHeaderId: compose.replyToMessageId,
-          version: 1,
-        },
-      }).catch((err: any) => console.error('[closeCompose] draft save failed:', err));
+      const draft: Record<string, any> = {
+        id: draftId,
+        headerMessageId,
+        to: compose.to,
+        cc: compose.cc,
+        bcc: compose.bcc,
+        from: compose.fromEmail ? [{ name: '', email: compose.fromEmail }] : [],
+        subject: compose.subject,
+        body: compose.body,
+        threadId: compose.threadId,
+        replyToHeaderId: compose.replyToMessageId,
+        version: 1,
+      };
+      // Look up Drafts folder and include it so mailsync links the message properly
+      (async () => {
+        try {
+          const folder = await window.api.getDraftsFolderId(acctId);
+          if (folder) draft.folder = folder;
+          await window.api.queueTask(acctId, { type: 'SyncbackDraftTask', draft });
+        } catch (err) {
+          console.error('[closeCompose] draft save failed:', err);
+        }
+      })();
     }
   }
   set(composeOpenAtom, null);

@@ -253,6 +253,10 @@ export function registerIpcHandlers(): void {
     return testAIConnection(settings);
   });
 
+  ipcMain.handle('get-drafts-folder', (_event, accountId: string) => {
+    return database.getFolderByRole(accountId, 'drafts');
+  });
+
   ipcMain.handle('ai:check-connection', async () => {
     return checkAIConnection();
   });

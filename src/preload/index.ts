@@ -58,6 +58,8 @@ const api = {
     ipcRenderer.invoke('ai:test-connection', settings),
   checkAIConnection: () =>
     ipcRenderer.invoke('ai:check-connection'),
+  getDraftsFolderId: (accountId: string) =>
+    ipcRenderer.invoke('get-drafts-folder', accountId),
   onAIStatus: (callback: (data: { status: string; error?: string }) => void) => {
     const handler = (_event: any, data: any) => callback(data);
     ipcRenderer.on('ai:status', handler);
