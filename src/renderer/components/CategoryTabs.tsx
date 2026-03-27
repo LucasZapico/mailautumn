@@ -1,10 +1,10 @@
 import { useMemo } from 'react';
 import { useAtomValue, useSetAtom } from 'jotai';
-import { IoCheckmarkDoneOutline } from 'react-icons/io5';
+import { IoCheckmarkDoneOutline, IoSearchOutline } from 'react-icons/io5';
 import {
   activeCategoryAtom, setActiveCategoryAtom, unreadCountAtom,
   activeAccountIdAtom, accountsAtom, activeAliasFilterAtom, setAliasFilterAtom,
-  markAllReadAtom,
+  markAllReadAtom, commandPaletteOpenAtom,
 } from '../atoms/app';
 import type { CategoryTab } from '../data/types';
 
@@ -28,6 +28,7 @@ export default function CategoryTabs() {
   const aliasFilter = useAtomValue(activeAliasFilterAtom);
   const setAlias = useSetAtom(setAliasFilterAtom);
   const markAllRead = useSetAtom(markAllReadAtom);
+  const setCommandPaletteOpen = useSetAtom(commandPaletteOpenAtom);
   const currentUnread = getUnreadCount(activeCategory);
 
   // Collect all addresses: primary emails + aliases from all accounts (when "All") or selected account
@@ -74,10 +75,19 @@ export default function CategoryTabs() {
             </button>
           );
         })}
+        <button
+          onClick={() => setCommandPaletteOpen(true)}
+          className="ml-auto flex items-center gap-2 px-3 py-1 rounded-md bg-bg-tertiary/50 text-text-tertiary hover:text-text-secondary hover:bg-bg-tertiary transition-colors cursor-pointer"
+          title="Search (Cmd+K)"
+        >
+          <IoSearchOutline size={13} />
+          <span className="text-2xs">Search...</span>
+          <kbd className="text-2xs bg-bg-tertiary px-1 py-0.5 rounded">&#8984;K</kbd>
+        </button>
         {currentUnread > 0 && (
           <button
             onClick={() => markAllRead()}
-            className="ml-auto flex items-center gap-1 px-2 py-1 rounded-md text-2xs text-text-tertiary hover:text-text-secondary hover:bg-bg-hover transition-colors cursor-pointer"
+            className="flex items-center gap-1 px-2 py-1 rounded-md text-2xs text-text-tertiary hover:text-text-secondary hover:bg-bg-hover transition-colors cursor-pointer"
             title="Mark all as read"
           >
             <IoCheckmarkDoneOutline size={13} />
