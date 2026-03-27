@@ -22,10 +22,11 @@ import {
   hasAccountsAtom, checkAccountsAtom, loadThreadsAtom, loadMessagesAtom,
   dbReadyAtom, addingAccountAtom, loadCategoriesAtom, loadPinnedIdsAtom, isOptimisticWindow,
   updateSyncStatusAtom, activeSidebarViewAtom, composeOpenAtom,
-  activeAccountIdAtom, syncStatusMapAtom, accountsAtom,
+  activeAccountIdAtom, syncStatusMapAtom, accountsAtom, threadsAtom,
   openDraftAtom, selectThreadAtom, aiStatusAtom, checkAIConnectionAtom,
 } from './atoms/app';
 import type { SyncStatus, AIConnectionStatus } from './atoms/app';
+import { createDemoAccounts, createDemoThreads } from './data/demo-data';
 
 function FeedView({ category }: { category: string }) {
   switch (category) {
@@ -139,29 +140,28 @@ function MailApp() {
   const showFullMessage = viewMode === 'list' && selectedThreadId !== null;
   const isFeedView = feedCategories.has(activeCategory);
 
-  // Load threads and categories when db is ready
-  useEffect(() => {
-    if (dbReady) {
-      loadThreads();
-      loadCategories();
-      loadPinnedIds();
-    }
-  }, [dbReady, activeCategory, sidebarView, activeAccountId, loadThreads, loadCategories, loadPinnedIds]);
+  const isDemo = !!window.api?.isDemoMode;
 
-  // Load messages when a thread is selected
-  // If the thread is a draft, open it in compose instead
+  // Load threads and categories when db is ready (skip in demo mode)
   useEffect(() => {
-    if (selectedThreadId && dbReady) {
-      loadMessages(selectedThreadId).then((messages) => {
-        if (!messages?.length) return;
-        const lastMsg = messages[messages.length - 1];
-        if (lastMsg?.draft) {
-          openDraft(lastMsg);
-          selectThread(null);
-        }
-      });
-    }
-  }, [selectedThreadId, dbReady, loadMessages, openDraft, selectThread]);
+    if (isDemo || !dbReady) return;
+    loadThreads();
+    loadCategories();
+    loadPinnedIds();
+  }, [isDemo, dbReady, activeCategory, sidebarView, activeAccountId, loadThreads, loadCategories, loadPinnedIds]);
+
+  // Load messages when a thread is selected (skip in demo — messages are pre-populated)
+  useEffect(() => {
+    if (isDemo || !selectedThreadId || !dbReady) return;
+    loadMessages(selectedThreadId).then((messages) => {
+      if (!messages?.length) return;
+      const lastMsg = messages[messages.length - 1];
+      if (lastMsg?.draft) {
+        openDraft(lastMsg);
+        selectThread(null);
+      }
+    });
+  }, [isDemo, selectedThreadId, dbReady, loadMessages, openDraft, selectThread]);
 
   // Listen for sync deltas to refresh data (debounced)
   // Mailsync sends rapid bursts of deltas during sync — without debouncing,
@@ -289,20 +289,35 @@ function MailApp() {
 export default function App() {
   const hasAccounts = useAtomValue(hasAccountsAtom);
   const checkAccounts = useSetAtom(checkAccountsAtom);
+  const setAccounts = useSetAtom(accountsAtom);
+  const setThreads = useSetAtom(threadsAtom);
+  const setHasAccounts = useSetAtom(hasAccountsAtom);
+  const setDbReady = useSetAtom(dbReadyAtom);
+  const isDemo = !!window.api?.isDemoMode;
 
-  // Check for accounts on mount
+  // Demo mode: populate atoms with fake data and skip all IPC
   useEffect(() => {
+    if (!isDemo) return;
+    setAccounts(createDemoAccounts());
+    setThreads(createDemoThreads());
+    setHasAccounts(true);
+    setDbReady(true);
+  }, [isDemo, setAccounts, setThreads, setHasAccounts, setDbReady]);
+
+  // Normal mode: check for accounts on mount
+  useEffect(() => {
+    if (isDemo) return;
     checkAccounts();
-  }, [checkAccounts]);
+  }, [isDemo, checkAccounts]);
 
   // Re-read accounts when main process updates avatars
   useEffect(() => {
-    if (!window.api?.onAccountsUpdated) return;
+    if (isDemo || !window.api?.onAccountsUpdated) return;
     const unsub = window.api.onAccountsUpdated(() => {
       checkAccounts();
     });
     return () => { unsub(); };
-  }, [checkAccounts]);
+  }, [isDemo, checkAccounts]);
 
   // Loading state
   if (hasAccounts === null) {

@@ -176,6 +176,7 @@ const api = {
     ipcRenderer.invoke('logs:get-recent', lines),
 
   platform: process.platform,
+  isDemoMode: process.env.DEMO_MODE === 'true',
 };
 
 contextBridge.exposeInMainWorld('api', api);
