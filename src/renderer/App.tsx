@@ -176,12 +176,11 @@ function MailApp() {
   }, [loadThreads]);
 
   useEffect(() => {
-    if (!window.api?.onSyncDelta) return;
+    if (isDemo || !window.api?.onSyncDelta) return;
     const unsub = window.api.onSyncDelta((delta: any) => {
       if (isOptimisticWindow()) return;
       if (delta.modelClass === 'Thread' || delta.modelClass === 'Message') {
         debouncedLoadThreads();
-        // Reload messages for the currently open thread so new replies appear
         if (delta.modelClass === 'Message' && selectedThreadId) {
           loadMessages(selectedThreadId);
         }
@@ -191,38 +190,38 @@ function MailApp() {
       unsub();
       if (reloadTimerRef.current) clearTimeout(reloadTimerRef.current);
     };
-  }, [debouncedLoadThreads, selectedThreadId, loadMessages]);
+  }, [isDemo, debouncedLoadThreads, selectedThreadId, loadMessages]);
 
   // Listen for sync status updates
   useEffect(() => {
-    if (!window.api?.onSyncStatus) return;
+    if (isDemo || !window.api?.onSyncStatus) return;
     const unsub = window.api.onSyncStatus((data: { accountId: string; status: string; error?: string }) => {
       updateSyncStatus({ accountId: data.accountId, status: data.status as SyncStatus, error: data.error });
     });
     return () => { unsub(); };
-  }, [updateSyncStatus]);
+  }, [isDemo, updateSyncStatus]);
 
-  // Listen for AI classification results — refresh threads when AI re-classifies emails
+  // Listen for AI classification results
   useEffect(() => {
-    if (!window.api?.onAIClassificationsUpdated) return;
+    if (isDemo || !window.api?.onAIClassificationsUpdated) return;
     const unsub = window.api.onAIClassificationsUpdated(() => {
       debouncedLoadThreads();
     });
     return () => { unsub(); };
-  }, [debouncedLoadThreads]);
+  }, [isDemo, debouncedLoadThreads]);
 
   // Listen for AI connection status from main process + check on mount
   const setAIStatus = useSetAtom(aiStatusAtom);
   const checkAI = useSetAtom(checkAIConnectionAtom);
   useEffect(() => {
-    // Proactively check on mount (the startup push may have fired before we mounted)
+    if (isDemo) return;
     checkAI();
     if (!window.api?.onAIStatus) return;
     const unsub = window.api.onAIStatus((data: { status: string; error?: string }) => {
       setAIStatus({ status: data.status as AIConnectionStatus, error: data.error });
     });
     return () => { unsub(); };
-  }, [setAIStatus, checkAI]);
+  }, [isDemo, setAIStatus, checkAI]);
 
   return (
     <div className="flex h-screen overflow-hidden">

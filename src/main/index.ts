@@ -184,9 +184,14 @@ app.whenReady().then(() => {
   // Load AI classification settings
   loadAISettings();
 
+  const isDemo = process.env.DEMO_MODE === 'true';
+  if (isDemo) {
+    log.info('Demo mode active — skipping database, sync, and AI check');
+  }
+
   // Try to open existing database
-  const dbReady = openDatabase();
-  log.info(`Database: ${dbReady ? 'opened' : 'not found (needs account setup)'}`);
+  const dbReady = !isDemo && openDatabase();
+  log.info(`Database: ${dbReady ? 'opened' : isDemo ? 'skipped (demo mode)' : 'not found (needs account setup)'}`);
 
   // Initialize CRM tables (after DB is open)
   if (dbReady) openCrmDb();
@@ -203,11 +208,13 @@ app.whenReady().then(() => {
   createWindow();
 
   // Check AI connection (non-blocking)
-  checkAIConnection().then((result) => {
-    if (mainWindow?.webContents) {
-      mainWindow.webContents.send('ai:status', result);
-    }
-  }).catch(err => log.warn('AI connection check failed:', err));
+  if (!isDemo) {
+    checkAIConnection().then((result) => {
+      if (mainWindow?.webContents) {
+        mainWindow.webContents.send('ai:status', result);
+      }
+    }).catch(err => log.warn('AI connection check failed:', err));
+  }
 
   // Backfill missing profile pictures (non-blocking)
   // Notify renderer to re-read accounts when done
