@@ -82,7 +82,6 @@ function makeEnv(): NodeJS.ProcessEnv {
     CONFIG_DIR_PATH: getConfigDir(),
     IDENTITY_SERVER: identityServer,
     SASL_PATH: MAILSYNC_DIR,
-    LD_LIBRARY_PATH: `${MAILSYNC_DIR}:${process.env.LD_LIBRARY_PATH || ''}`,
     GMAIL_CLIENT_ID: getGmailClientId(),
     GMAIL_CLIENT_SECRET: getGmailClientSecret(),
   };
